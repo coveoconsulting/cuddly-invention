@@ -11,6 +11,7 @@ import express, {
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import { Pool } from "pg";
 import type {
   ApprovalStatus,
   AssistantResponse,
@@ -57,6 +58,7 @@ type AppConfig = {
   logLevel: "info" | "error" | "silent";
   sessionSecret: string;
   appTimeZone: string;
+  databaseUrl: string | null;
   bootstrap: {
     adminEmail: string | null;
     adminPassword: string | null;
@@ -114,6 +116,11 @@ function resolveAppConfig(): AppConfig {
   const nodeEnv = parseNodeEnv(process.env.NODE_ENV);
   const isProduction = nodeEnv === "production";
   const sessionSecret = process.env.SESSION_SECRET?.trim() || "";
+  const databaseUrl =
+    process.env.DATABASE_URL?.trim() ||
+    process.env.POSTGRES_URL?.trim() ||
+    process.env.POSTGRES_PRISMA_URL?.trim() ||
+    null;
 
   if (isProduction && sessionSecret.length < 32) {
     throw new Error("SESSION_SECRET doit contenir au moins 32 caracteres en production.");
@@ -129,6 +136,7 @@ function resolveAppConfig(): AppConfig {
     logLevel: resolveLogLevel(process.env.LOG_LEVEL),
     sessionSecret: sessionSecret || "clerivo-local-secret",
     appTimeZone: process.env.APP_TIMEZONE?.trim() || "Africa/Casablanca",
+    databaseUrl,
     bootstrap: {
       adminEmail: process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase() || null,
       adminPassword: process.env.BOOTSTRAP_ADMIN_PASSWORD || null,
@@ -150,6 +158,7 @@ const API_PREFIX = "/api/v1";
 const SESSION_COOKIE = appConfig.isProduction ? "__Host-clerivo_session" : "clerivo_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const DB_PATH = path.join(process.cwd(), "data", "app-db.json");
+const STATE_ROW_ID = "primary";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 const ai = process.env.GEMINI_API_KEY
@@ -397,7 +406,28 @@ const GLOBAL_READ_ROLES = new Set<RoleKey>([
   "viewer",
 ]);
 
-class JsonDatabase {
+type DataStore = {
+  init(): Promise<void>;
+  read(): Promise<Database>;
+  mutate(mutator: (db: Database) => void | Promise<void>): Promise<void>;
+};
+
+function cloneDatabase(db: Database) {
+  return structuredClone(db);
+}
+
+function createInitialDatabase() {
+  return appConfig.isProduction ? createProductionBootstrapDatabase() : createSeedDatabase();
+}
+
+function parseDatabasePayload(payload: unknown) {
+  if (typeof payload === "string") {
+    return JSON.parse(payload) as Database;
+  }
+  return payload as Database;
+}
+
+class JsonDatabase implements DataStore {
   private data: Database | null = null;
   private writeQueue = Promise.resolve();
 
@@ -410,7 +440,7 @@ class JsonDatabase {
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
       if (nodeError?.code === "ENOENT") {
-        this.data = appConfig.isProduction ? createProductionBootstrapDatabase() : createSeedDatabase();
+        this.data = createInitialDatabase();
         await this.persist();
         return;
       }
@@ -428,9 +458,13 @@ class JsonDatabase {
     return this.data;
   }
 
-  async mutate(mutator: (db: Database) => void) {
+  async read() {
+    return cloneDatabase(this.snapshot());
+  }
+
+  async mutate(mutator: (db: Database) => void | Promise<void>) {
     const db = this.snapshot();
-    mutator(db);
+    await mutator(db);
     await this.persist();
   }
 
@@ -451,7 +485,89 @@ class JsonDatabase {
   }
 }
 
-const store = new JsonDatabase();
+class PostgresDatabase implements DataStore {
+  private pool: Pool;
+  private initPromise: Promise<void> | null = null;
+
+  constructor(connectionString: string) {
+    this.pool = new Pool({ connectionString });
+  }
+
+  async init() {
+    if (!this.initPromise) {
+      this.initPromise = this.ensureSchema();
+    }
+    await this.initPromise;
+  }
+
+  async read() {
+    await this.init();
+    const result = await this.pool.query<{ payload: unknown }>(
+      "SELECT payload FROM app_state WHERE id = $1",
+      [STATE_ROW_ID],
+    );
+    if (result.rowCount === 0) {
+      throw new Error("Etat applicatif introuvable dans Postgres.");
+    }
+    return cloneDatabase(parseDatabasePayload(result.rows[0].payload));
+  }
+
+  async mutate(mutator: (db: Database) => void | Promise<void>) {
+    await this.init();
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<{ payload: unknown }>(
+        "SELECT payload FROM app_state WHERE id = $1 FOR UPDATE",
+        [STATE_ROW_ID],
+      );
+      const db =
+        result.rowCount === 0
+          ? createInitialDatabase()
+          : parseDatabasePayload(result.rows[0].payload);
+      await mutator(db);
+      if (result.rowCount === 0) {
+        await client.query(
+          "INSERT INTO app_state (id, payload, updated_at) VALUES ($1, $2::jsonb, NOW())",
+          [STATE_ROW_ID, JSON.stringify(db)],
+        );
+      } else {
+        await client.query(
+          "UPDATE app_state SET payload = $2::jsonb, updated_at = NOW() WHERE id = $1",
+          [STATE_ROW_ID, JSON.stringify(db)],
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async ensureSchema() {
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS app_state (
+        id TEXT PRIMARY KEY,
+        payload JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.pool.query(
+      `
+        INSERT INTO app_state (id, payload, updated_at)
+        VALUES ($1, $2::jsonb, NOW())
+        ON CONFLICT (id) DO NOTHING
+      `,
+      [STATE_ROW_ID, JSON.stringify(createInitialDatabase())],
+    );
+  }
+}
+
+const store: DataStore = appConfig.databaseUrl
+  ? new PostgresDatabase(appConfig.databaseUrl)
+  : new JsonDatabase();
 
 function serializeError(error: unknown) {
   if (error instanceof Error) {
@@ -1050,25 +1166,27 @@ function buildFallbackAssistantText(db: Database, user: DbUser, message: string)
   };
 }
 
-function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const db = store.snapshot();
-  const cookies = parseCookies(req.headers.cookie);
-  const session = parseSessionToken(cookies[SESSION_COOKIE]);
-  if (!session) {
-    clearSessionCookie(res);
-    res.status(401).json({ error: "Session invalide" });
-    return;
-  }
-  const user = findUserById(db, session.userId);
-  if (!user || !user.active) {
-    clearSessionCookie(res);
-    res.status(401).json({ error: "Utilisateur indisponible" });
-    return;
-  }
-  req.authUser = user;
-  req.sessionPayload = buildSessionPayload(db, user);
-  next();
-}
+const requireAuth: RequestHandler = (req, res, next) => {
+  void (async () => {
+    const db = await store.read();
+    const cookies = parseCookies(req.headers.cookie);
+    const session = parseSessionToken(cookies[SESSION_COOKIE]);
+    if (!session) {
+      clearSessionCookie(res);
+      res.status(401).json({ error: "Session invalide" });
+      return;
+    }
+    const user = findUserById(db, session.userId);
+    if (!user || !user.active) {
+      clearSessionCookie(res);
+      res.status(401).json({ error: "Utilisateur indisponible" });
+      return;
+    }
+    (req as AuthenticatedRequest).authUser = user;
+    (req as AuthenticatedRequest).sessionPayload = buildSessionPayload(db, user);
+    next();
+  })().catch(next);
+};
 
 function requirePermission(permission: PermissionKey) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -1084,8 +1202,9 @@ function requirePermission(permission: PermissionKey) {
   };
 }
 
-async function startServer() {
+export async function createApp(options: { serveFrontend?: boolean } = {}) {
   await store.init();
+  const serveFrontend = options.serveFrontend ?? true;
 
   const app = express();
   const loginRateLimiter = createRateLimiter({
@@ -1178,7 +1297,7 @@ async function startServer() {
     `${API_PREFIX}/auth/login`,
     loginRateLimiter,
     asyncRoute(async (req, res) => {
-      const db = store.snapshot();
+      const db = await store.read();
       const email = String(req.body?.email || "").trim();
       const password = String(req.body?.password || "");
       const user = findUserByEmail(db, email);
@@ -1202,21 +1321,23 @@ async function startServer() {
     `${API_PREFIX}/dashboard`,
     requireAuth,
     requirePermission("dashboard.read"),
-    (req: AuthenticatedRequest, res) => {
-      res.json(buildDashboard(store.snapshot(), req.authUser!));
-    },
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      res.json(buildDashboard(db, req.authUser!));
+    }),
   );
 
   app.get(
     `${API_PREFIX}/clients`,
     requireAuth,
     requirePermission("clients.read"),
-    (req: AuthenticatedRequest, res) => {
-      const clients = getVisibleClients(store.snapshot(), req.authUser!).sort((left, right) =>
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      const clients = getVisibleClients(db, req.authUser!).sort((left, right) =>
         left.name.localeCompare(right.name),
       );
       res.json(clients);
-    },
+    }),
   );
 
   app.post(
@@ -1302,28 +1423,29 @@ async function startServer() {
     `${API_PREFIX}/visits`,
     requireAuth,
     requirePermission("visits.read"),
-    (req: AuthenticatedRequest, res) => {
-      const visits = getVisibleVisits(store.snapshot(), req.authUser!).sort((left, right) => {
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      const visits = getVisibleVisits(db, req.authUser!).sort((left, right) => {
         const dateCompare = left.scheduledDate.localeCompare(right.scheduledDate);
         return dateCompare !== 0 ? dateCompare : left.startTime.localeCompare(right.startTime);
       });
       res.json(visits);
-    },
+    }),
   );
 
   app.get(
     `${API_PREFIX}/visits/:id`,
     requireAuth,
     requirePermission("visits.read"),
-    (req: AuthenticatedRequest, res) => {
-      const db = store.snapshot();
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
       const visit = db.visits.find((entry) => entry.id === req.params.id);
       if (!visit || !canSeeEntity(db, req.authUser!, visit)) {
         res.status(404).json({ error: "Visite introuvable" });
         return;
       }
       res.json(visit);
-    },
+    }),
   );
 
   app.post(
@@ -1480,12 +1602,13 @@ async function startServer() {
     `${API_PREFIX}/opportunities`,
     requireAuth,
     requirePermission("opportunities.read"),
-    (req: AuthenticatedRequest, res) => {
-      const opportunities = getVisibleOpportunities(store.snapshot(), req.authUser!).sort(
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      const opportunities = getVisibleOpportunities(db, req.authUser!).sort(
         (left, right) => right.amount - left.amount,
       );
       res.json(opportunities);
-    },
+    }),
   );
 
   app.post(
@@ -1610,12 +1733,13 @@ async function startServer() {
     `${API_PREFIX}/orders`,
     requireAuth,
     requirePermission("orders.read"),
-    (req: AuthenticatedRequest, res) => {
-      const orders = getVisibleOrders(store.snapshot(), req.authUser!).sort((left, right) =>
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      const orders = getVisibleOrders(db, req.authUser!).sort((left, right) =>
         right.date.localeCompare(left.date),
       );
       res.json(orders);
-    },
+    }),
   );
 
   app.post(
@@ -1732,9 +1856,10 @@ async function startServer() {
     `${API_PREFIX}/products`,
     requireAuth,
     requirePermission("products.read"),
-    (_req: AuthenticatedRequest, res) => {
-      res.json(store.snapshot().products);
-    },
+    asyncRoute(async (_req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      res.json(db.products);
+    }),
   );
 
   app.patch(
@@ -1769,31 +1894,33 @@ async function startServer() {
     `${API_PREFIX}/targets`,
     requireAuth,
     requirePermission("targets.read"),
-    (req: AuthenticatedRequest, res) => {
-      res.json(getVisibleTargets(store.snapshot(), req.authUser!));
-    },
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      res.json(getVisibleTargets(db, req.authUser!));
+    }),
   );
 
   app.get(
     `${API_PREFIX}/manager/overview`,
     requireAuth,
     requirePermission("insights.read"),
-    (req: AuthenticatedRequest, res) => {
-      res.json(buildManagerOverview(store.snapshot(), req.authUser!));
-    },
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      res.json(buildManagerOverview(db, req.authUser!));
+    }),
   );
 
   app.get(
     `${API_PREFIX}/notifications`,
     requireAuth,
     requirePermission("notifications.read"),
-    (req: AuthenticatedRequest, res) => {
-      const notifications = store
-        .snapshot()
-        .notifications.filter((item) => item.userId === req.authUser!.id)
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      const notifications = db.notifications
+        .filter((item) => item.userId === req.authUser!.id)
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
       res.json(notifications);
-    },
+    }),
   );
 
   app.patch(
@@ -1826,8 +1953,8 @@ async function startServer() {
     `${API_PREFIX}/roles`,
     requireAuth,
     requirePermission("roles.read"),
-    (req: AuthenticatedRequest, res) => {
-      const db = store.snapshot();
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
       const visibleUsers = GLOBAL_READ_ROLES.has(req.authUser!.role)
         ? db.users
         : db.users.filter((entry) => entry.teamId && entry.teamId === req.authUser!.teamId);
@@ -1838,25 +1965,27 @@ async function startServer() {
         currentPermissions: getRoleDefinition(req.authUser!.role).permissions,
       };
       res.json(payload);
-    },
+    }),
   );
 
   app.get(
     `${API_PREFIX}/integrations`,
     requireAuth,
     requirePermission("integrations.read"),
-    (_req: AuthenticatedRequest, res) => {
-      res.json(store.snapshot().integrations);
-    },
+    asyncRoute(async (_req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      res.json(db.integrations);
+    }),
   );
 
   app.get(
     `${API_PREFIX}/settings/profile`,
     requireAuth,
     requirePermission("settings.read"),
-    (req: AuthenticatedRequest, res) => {
-      res.json(buildUserSummary(store.snapshot(), req.authUser!));
-    },
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
+      res.json(buildUserSummary(db, req.authUser!));
+    }),
   );
 
   app.patch(
@@ -1888,12 +2017,12 @@ async function startServer() {
     `${API_PREFIX}/settings/preferences`,
     requireAuth,
     requirePermission("settings.read"),
-    (req: AuthenticatedRequest, res) => {
-      const db = store.snapshot();
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const db = await store.read();
       const preferences =
         db.preferences.find((entry) => entry.userId === req.authUser!.id) || defaultPreferences(req.authUser!.id);
       res.json(preferences);
-    },
+    }),
   );
 
   app.patch(
@@ -1929,7 +2058,7 @@ async function startServer() {
     requirePermission("assistant.read"),
     assistantRateLimiter,
     asyncRoute(async (req: AuthenticatedRequest, res) => {
-      const db = store.snapshot();
+      const db = await store.read();
       const user = req.authUser!;
       const message = String(req.body?.message || "").trim();
       const history = Array.isArray(req.body?.history) ? req.body.history : [];
@@ -2003,28 +2132,30 @@ Alertes: ${dashboard.alerts.map((alert) => alert.title).join(" | ")}
     res.status(404).json(buildApiErrorPayload(req, "Route API introuvable"));
   });
 
-  if (!appConfig.isProduction) {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    try {
-      await fs.access(path.join(distPath, "index.html"));
-    } catch {
-      throw new Error("Assets de production introuvables. Lancez `npm run build` avant `npm run start`.");
+  if (serveFrontend) {
+    if (!appConfig.isProduction) {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), "dist");
+      try {
+        await fs.access(path.join(distPath, "index.html"));
+      } catch {
+        throw new Error("Assets de production introuvables. Lancez `npm run build` avant `npm run start`.");
+      }
+      app.use(
+        express.static(distPath, {
+          index: false,
+          maxAge: "1d",
+        }),
+      );
+      app.get("*", (_req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
     }
-    app.use(
-      express.static(distPath, {
-        index: false,
-        maxAge: "1d",
-      }),
-    );
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
   }
 
   app.use(
@@ -2063,6 +2194,12 @@ Alertes: ${dashboard.alerts.map((alert) => alert.title).join(" | ")}
       res.status(statusCode).send(message);
     }) as ErrorRequestHandler,
   );
+
+  return app;
+}
+
+export async function startServer() {
+  const app = await createApp({ serveFrontend: true });
 
   const server = app.listen(PORT, appConfig.host, () => {
     logInfo("server.started", {
@@ -2789,13 +2926,6 @@ process.on("unhandledRejection", (error) => {
 
 process.on("uncaughtException", (error) => {
   logError("process.uncaught_exception", {
-    error: serializeError(error),
-  });
-  process.exit(1);
-});
-
-startServer().catch((error) => {
-  logError("server.startup_failed", {
     error: serializeError(error),
   });
   process.exit(1);

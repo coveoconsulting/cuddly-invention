@@ -1,6 +1,6 @@
 # Clerivo
 
-CRM / Sales Intelligence workspace avec front React, API Express, session par cookie signe et base JSON persistante.
+CRM / Sales Intelligence workspace avec front React, API Express, session par cookie signe et stockage local JSON ou Postgres.
 
 ## Local
 
@@ -9,6 +9,8 @@ CRM / Sales Intelligence workspace avec front React, API Express, session par co
 2. Copier `.env.example` vers `.env`
 3. Lancer l'application
    `npm run dev`
+
+En local, si `DATABASE_URL` n'est pas defini, l'application continue d'utiliser `data/app-db.json`.
 
 ## Verification
 
@@ -23,10 +25,18 @@ Variables importantes:
 - `NODE_ENV=production`
 - `SESSION_SECRET` avec au moins 32 caracteres aleatoires
 - `TRUST_PROXY=true` si l'app est derriere un reverse proxy TLS
+- `DATABASE_URL` pour utiliser Postgres en deploiement serverless / Vercel
+
+Vercel:
+
+1. creer une base Postgres et exposer `DATABASE_URL` dans le projet Vercel
+2. definir `SESSION_SECRET`
+3. definir `BOOTSTRAP_ADMIN_EMAIL` et `BOOTSTRAP_ADMIN_PASSWORD` pour le premier boot
+4. deployer: Vercel sert le front depuis `dist/` et execute l'API Express via `api/[...path].ts`
 
 Premier demarrage en production:
 
-- si `data/app-db.json` n'existe pas, il faut fournir
+- si la base Postgres ou `data/app-db.json` est vide, il faut fournir
   - `BOOTSTRAP_ADMIN_EMAIL`
   - `BOOTSTRAP_ADMIN_PASSWORD`
 - le serveur refuse maintenant de recreer des comptes de demonstration en production
@@ -39,8 +49,9 @@ Build et demarrage:
 Notes d'exploitation:
 
 - le client est servi depuis `dist/`
-- le bundle serveur est genere dans `build/server.cjs`
-- `data/app-db.json` doit etre monte sur un stockage persistant
+- le bundle serveur local est genere dans `build/server.cjs`
+- en Vercel, l'API tourne via la fonction `api/[...path].ts`
+- sans `DATABASE_URL`, `data/app-db.json` doit etre monte sur un stockage persistant
 - endpoints de supervision:
   - `GET /healthz`
   - `GET /readyz`
