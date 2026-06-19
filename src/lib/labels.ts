@@ -13,44 +13,44 @@ export type BadgeTone = "default" | "success" | "warning" | "error" | "neutral";
 export const pipelineStageLabel: Record<PipelineStage, string> = {
   qualification: "Qualification",
   proposal: "Proposition",
-  negotiation: "Negociation",
-  won: "Gagne",
+  negotiation: "Négociation",
+  won: "Gagné",
   lost: "Perdu",
 };
 
 export const visitStatusLabel: Record<VisitStatus, string> = {
-  planned: "Planifiee",
+  planned: "Planifiée",
   in_progress: "En cours",
-  completed: "Terminee",
-  missed: "Manquee",
-  cancelled: "Annulee",
+  completed: "Terminée",
+  missed: "Manquée",
+  cancelled: "Annulée",
 };
 
 export const orderStatusLabel: Record<OrderStatus, string> = {
   draft: "Brouillon",
   awaiting_approval: "Validation requise",
-  confirmed: "Confirmee",
-  delivered: "Livree",
-  cancelled: "Annulee",
+  confirmed: "Confirmée",
+  delivered: "Livrée",
+  cancelled: "Annulée",
 };
 
 export const approvalStatusLabel: Record<ApprovalStatus, string> = {
   not_required: "Sans validation",
   pending: "En attente",
-  approved: "Approuvee",
-  rejected: "Refusee",
+  approved: "Approuvée",
+  rejected: "Refusée",
 };
 
 export const syncStatusLabel: Record<SyncStatus, string> = {
-  not_synced: "Non synchronise",
+  not_synced: "Non synchronisé",
   queued: "En file de sync",
-  synced: "Synchronise",
+  synced: "Synchronisé",
 };
 
 export const riskLabel: Record<RiskLevel, string> = {
   low: "Faible",
   medium: "Moyen",
-  high: "Eleve",
+  high: "Élevé",
 };
 
 export function visitStatusTone(status: VisitStatus): BadgeTone {

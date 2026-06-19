@@ -13,6 +13,7 @@ export type PermissionKey =
   | "dashboard.read"
   | "clients.read"
   | "clients.write"
+  | "clients.delete"
   | "visits.read"
   | "visits.write"
   | "opportunities.read"
@@ -20,18 +21,31 @@ export type PermissionKey =
   | "orders.read"
   | "orders.write"
   | "orders.approve"
+  | "orders.delete"
   | "products.read"
   | "products.write"
+  | "products.delete"
   | "targets.read"
+  | "targets.write"
   | "insights.read"
   | "routes.read"
   | "assistant.read"
   | "roles.read"
+  | "roles.write"
+  | "users.write"
+  | "audit.read"
   | "integrations.read"
   | "settings.read"
   | "settings.write"
   | "notifications.read"
-  | "notifications.write";
+  | "notifications.write"
+  | "prospects.delete"
+  | "contracts.delete"
+  | "cases.delete"
+  | "campaigns.delete"
+  | "calls.delete"
+  | "activities.delete"
+  | "approvals.write";
 
 export type ClientType = "prospect" | "client";
 export type ClientStatus = "active" | "inactive" | "blocked";
@@ -71,6 +85,46 @@ export type PriorityLevel = "low" | "medium" | "high" | "critical";
 
 export type NotificationLevel = "info" | "warning" | "critical";
 
+export type SubscriptionPlan = "essentiel" | "professionnel" | "enterprise" | "sur_mesure";
+
+export type PlanFeature =
+  | "contacts"
+  | "pipeline"
+  | "visits"
+  | "orders"
+  | "quotes"
+  | "whatsapp"
+  | "click_to_call"
+  | "assistant_ai"
+  | "advanced_reports"
+  | "automations"
+  | "unlimited_integrations";
+
+export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
+  essentiel: "Essentiel",
+  professionnel: "Professionnel",
+  enterprise: "Enterprise",
+  sur_mesure: "Sur mesure",
+};
+
+export const PLAN_FEATURES: Record<SubscriptionPlan, PlanFeature[]> = {
+  essentiel: ["contacts", "pipeline", "visits", "orders"],
+  professionnel: ["contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call"],
+  enterprise: [
+    "contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call",
+    "assistant_ai", "advanced_reports", "automations", "unlimited_integrations",
+  ],
+  sur_mesure: [
+    "contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call",
+    "assistant_ai", "advanced_reports", "automations", "unlimited_integrations",
+  ],
+};
+
+export function planHasFeature(plan: SubscriptionPlan | undefined, feature: PlanFeature): boolean {
+  if (!plan) return false;
+  return PLAN_FEATURES[plan].includes(feature);
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -78,6 +132,10 @@ export interface Company {
   currency: string;
   timezone: string;
   country: string;
+  plan: SubscriptionPlan;
+  planSeats: number;
+  planStartedAt: string | null;
+  planNotes: string;
 }
 
 export interface Territory {
@@ -113,6 +171,7 @@ export interface UserSummary {
   territoryIds: string[];
   territoryLabels: string[];
   active: boolean;
+  avatarUrl?: string | null;
 }
 
 export interface SessionPayload {
@@ -205,6 +264,18 @@ export interface Order {
   approvalStatus: ApprovalStatus;
   syncStatus: SyncStatus;
   notes?: string;
+  lines?: OrderLine[];
+}
+
+export interface OrderLine {
+  id: string;
+  orderId: string;
+  productId: string | null;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  lineTotal: number;
 }
 
 export interface Product {
@@ -301,6 +372,8 @@ export interface IntegrationItem {
   status: "connected" | "configured" | "attention";
   lastSyncAt?: string | null;
   description: string;
+  endpointUrl?: string;
+  lastError?: string;
 }
 
 export interface UserPreferences {
@@ -308,6 +381,60 @@ export interface UserPreferences {
   emailNotifications: boolean;
   weeklyDigest: boolean;
   autoSync: boolean;
+}
+
+export type ProspectStatus = "new" | "qualified" | "contacted" | "converted" | "lost";
+
+export interface Prospect {
+  id: string;
+  name: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  source: string;
+  status: ProspectStatus;
+  score: number;
+  ownerUserId: string;
+  ownerName: string;
+  territoryId: string;
+  territoryLabel: string;
+  notes: string;
+  convertedClientId?: string | null;
+  convertedAt?: string | null;
+  createdAt: string;
+}
+
+export type ActivityType = "call" | "email" | "note" | "task" | "meeting";
+
+export interface Activity {
+  id: string;
+  type: ActivityType;
+  subject: string;
+  content: string;
+  ownerUserId: string;
+  ownerName: string;
+  clientId?: string | null;
+  opportunityId?: string | null;
+  prospectId?: string | null;
+  dueDate?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+export interface DocumentItem {
+  id: string;
+  name: string;
+  blobUrl: string;
+  sizeBytes: number;
+  contentType: string;
+  uploadedByUserId: string;
+  uploadedByName: string;
+  clientId?: string | null;
+  orderId?: string | null;
+  opportunityId?: string | null;
+  signedAt?: string | null;
+  signedByName?: string | null;
+  createdAt: string;
 }
 
 export interface RolesResponse {
@@ -324,4 +451,244 @@ export interface AssistantResponse {
 export interface ApiErrorPayload {
   error: string;
   details?: string;
+}
+
+export type WhatsAppDirection = "inbound" | "outbound";
+export type WhatsAppStatus =
+  | "queued"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed"
+  | "received";
+export type WhatsAppMessageType =
+  | "text"
+  | "image"
+  | "document"
+  | "audio"
+  | "video"
+  | "sticker"
+  | "template"
+  | "location"
+  | "reaction"
+  | "system";
+
+export interface WhatsAppContact {
+  id: string;
+  phone: string;
+  displayName: string;
+  profileName: string;
+  clientId: string | null;
+  prospectId: string | null;
+  linkedName: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+  lastBody: string;
+  lastType: WhatsAppMessageType | null;
+}
+
+export interface WhatsAppMessage {
+  id: string;
+  contactId: string;
+  waMessageId: string | null;
+  direction: WhatsAppDirection;
+  type: WhatsAppMessageType;
+  body: string;
+  mediaUrl: string | null;
+  mediaMime: string | null;
+  mediaFilename: string | null;
+  templateName: string | null;
+  status: WhatsAppStatus;
+  errorMessage: string | null;
+  sentByUserId: string | null;
+  createdAt: string;
+}
+
+export interface WhatsAppSettings {
+  phoneNumberId: string;
+  businessAccountId: string;
+  displayPhoneNumber: string;
+  verifyToken: string;
+  defaultLanguage: string;
+  hasAccessToken: boolean;
+  hasAppSecret: boolean;
+  webhookUrl: string;
+}
+
+export type QuoteStatus = "draft" | "sent" | "signed" | "refused" | "expired" | "cancelled";
+
+export interface QuoteLine {
+  id: string;
+  position: number;
+  productId: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  lineTotal: number;
+}
+
+export interface QuoteAttachment {
+  id: string;
+  name: string;
+  blobUrl: string;
+  sizeBytes: number;
+  contentType: string;
+  uploadedByUserId: string | null;
+  uploadedByName: string | null;
+  visibleToClient: boolean;
+  createdAt: string;
+}
+
+export interface Quote {
+  id: string;
+  number: string;
+  clientId: string | null;
+  prospectId: string | null;
+  opportunityId: string | null;
+  ownerUserId: string;
+  ownerName: string;
+  territoryId: string;
+  status: QuoteStatus;
+  title: string;
+  clientName: string;
+  clientContact: string;
+  clientEmail: string;
+  clientAddress: string;
+  currency: string;
+  taxRate: number;
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  notes: string;
+  terms: string;
+  paymentTerms: string;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  sentAt: string | null;
+  signedAt: string | null;
+  signedByName: string | null;
+  signedByEmail: string | null;
+  signatureDataUrl: string | null;
+  signatureUrl: string | null;
+  refusedReason: string | null;
+  orderId: string | null;
+  reminderCount: number;
+  lastReminderAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines: QuoteLine[];
+  attachments: QuoteAttachment[];
+}
+
+export type CommentEntityType =
+  | "client" | "prospect" | "opportunity" | "quote" | "order" | "visit";
+
+export interface CommentItem {
+  id: string;
+  entityType: CommentEntityType;
+  entityId: string;
+  authorUserId: string;
+  authorName: string;
+  authorInitials: string;
+  body: string;
+  pinned: boolean;
+  createdAt: string;
+}
+
+export interface CrmSettings {
+  quoteNumberPrefix: string;
+  quoteNumberCounter: number;
+  quoteValidityDays: number;
+  defaultTaxRate: number;
+  defaultPaymentTerms: string;
+  defaultQuoteTerms: string;
+  legalMentions: string;
+  quoteEmailSubject: string;
+  quoteEmailBody: string;
+}
+
+export interface ClientDetailPayload {
+  client: Client & { ownerName: string; territoryLabel: string };
+  visits: Array<{ id: string; scheduledDate: string; status: VisitStatus; objective: string }>;
+  opportunities: Array<{ id: string; stage: PipelineStage; amount: number; expectedClose: string; priority: PriorityLevel }>;
+  orders: Array<{ id: string; date: string; amount: number; status: OrderStatus; approvalStatus: ApprovalStatus }>;
+  documents: Array<{ id: string; name: string; blobUrl: string; sizeBytes: number; createdAt: string; signedAt: string | null }>;
+  quotes: Array<{ id: string; number: string; status: QuoteStatus; total: number; currency: string; issuedAt: string | null; signedAt: string | null }>;
+}
+
+export interface ProspectDetailPayload {
+  prospect: Prospect;
+  activities: Array<{ id: string; type: ActivityType; subject: string; content: string; dueDate: string | null; completedAt: string | null; createdAt: string }>;
+  quotes: Array<{ id: string; number: string; status: QuoteStatus; total: number; currency: string; issuedAt: string | null; signedAt: string | null }>;
+}
+
+export type ContractStatus = "draft" | "active" | "renewal_due" | "expired" | "cancelled";
+export type CaseStatus = "open" | "pending" | "resolved" | "closed";
+export type CampaignStatus = "draft" | "scheduled" | "running" | "completed" | "paused";
+export type CallStatus = "planned" | "completed" | "missed";
+
+export interface ContractItem {
+  id: string;
+  number: string;
+  clientId: string | null;
+  clientName: string;
+  ownerUserId: string;
+  ownerName: string;
+  status: ContractStatus;
+  startDate: string;
+  endDate: string;
+  renewalDate: string | null;
+  amount: number;
+  currency: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface CaseItem {
+  id: string;
+  title: string;
+  clientId: string | null;
+  clientName: string;
+  ownerUserId: string;
+  ownerName: string;
+  status: CaseStatus;
+  priority: PriorityLevel;
+  category: string;
+  description: string;
+  resolution: string;
+  dueAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CampaignItem {
+  id: string;
+  name: string;
+  channel: "email" | "sms" | "whatsapp" | "phone";
+  status: CampaignStatus;
+  audience: string;
+  ownerUserId: string;
+  ownerName: string;
+  scheduledAt: string | null;
+  sentCount: number;
+  responseCount: number;
+  notes: string;
+  createdAt: string;
+}
+
+export interface SalesCallItem {
+  id: string;
+  subject: string;
+  phone: string;
+  clientId: string | null;
+  clientName: string;
+  ownerUserId: string;
+  ownerName: string;
+  status: CallStatus;
+  scheduledAt: string;
+  durationSeconds: number;
+  outcome: string;
+  notes: string;
+  createdAt: string;
 }

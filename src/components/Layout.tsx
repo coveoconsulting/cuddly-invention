@@ -1,14 +1,35 @@
-import { Outlet } from "react-router-dom";
+import { useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { Header } from "./Header";
+import { MobileSidebar, Sidebar } from "./Sidebar";
 
 export function Layout() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const location = useLocation();
+  const pageKey = location.pathname.split("/").slice(0, 3).join("/") || "/";
+
   return (
     <div className="app-shell min-h-screen overflow-hidden bg-surface">
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1660px] flex-col px-4 pb-10 pt-4 sm:px-5 lg:px-7">
-        <Header />
-        <main className="relative flex-1 pt-5">
-          <Outlet />
-        </main>
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[1660px]">
+        <Sidebar />
+        <MobileSidebar open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+        <div className="flex min-w-0 flex-1 flex-col px-4 pb-10 sm:px-5 lg:px-7">
+          <Header onOpenMobileMenu={() => setMobileMenuOpen(true)} />
+          <main className="relative flex-1 pt-4">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={pageKey}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: [0.2, 0.7, 0.2, 1] }}
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </div>
       </div>
     </div>
   );

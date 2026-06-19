@@ -1,13 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <meta name="theme-color" content="#2e7d5b" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/onlet.png" />
+    <link rel="apple-touch-icon" href="/onlet.png" />
+    <title>Coveo consulting — CRM</title>
+    <meta name="description" content="CRM force commerciale terrain : comptes, visites, pipeline, commandes." />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/sw.js").catch(function (error) {
+            console.warn("SW registration failed", error);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
-

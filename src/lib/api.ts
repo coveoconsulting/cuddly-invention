@@ -28,7 +28,22 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
     },
   });
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   const payload = await parseResponse(response);
+  const contentType = response.headers.get("content-type") || "";
+
+  if (String(url).startsWith("/api/") && !contentType.includes("application/json")) {
+    const snippet = typeof payload === "string" ? payload.slice(0, 200) : "";
+    const detail = snippet ? ` — ${snippet.replace(/\s+/g, " ").trim()}` : "";
+    throw new ApiError(
+      `Réponse API invalide (HTTP ${response.status})${detail}`,
+      response.status,
+      payload,
+    );
+  }
 
   if (!response.ok) {
     if (response.status === 401) {
@@ -42,6 +57,10 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
   }
 
   return payload as T;
+}
+
+export function asArray<T>(payload: unknown): T[] {
+  return Array.isArray(payload) ? payload : [];
 }
 
 export function getJson<T>(url: string) {

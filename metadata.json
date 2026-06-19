@@ -1,6 +1,6 @@
 {
-  "name": "Force Commerciale Terrain",
-  "description": "Application de force commerciale terrain complète: gestion de tournées, visites clients, produits, commandes, pipeline commercial et copilote IA.",
+  "name": "Coveo consulting — CRM",
+  "description": "CRM force commerciale terrain : comptes, visites, pipeline, commandes, prospects, activités et rapports.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

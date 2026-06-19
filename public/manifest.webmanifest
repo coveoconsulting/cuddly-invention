@@ -1,0 +1,20 @@
+{
+  "name": "Coveo consulting — CRM",
+  "short_name": "Coveo",
+  "description": "CRM force commerciale terrain.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fbf7",
+  "theme_color": "#2e7d5b",
+  "lang": "fr-FR",
+  "icons": [
+    {
+      "src": "/onlet.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

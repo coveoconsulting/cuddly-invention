@@ -1,14 +1,29 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "migrations/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "/api?path=$1"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/quote-reminders",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/ops-digest",
+      "schedule": "0 8 * * *"
     }
   ]
 }

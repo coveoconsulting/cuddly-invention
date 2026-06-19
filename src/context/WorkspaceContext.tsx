@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import type { Company, NotificationItem, PermissionKey, SessionPayload } from "../types";
-import { getJson, patchJson, postJson } from "../lib/api";
+import { ApiError, asArray, getJson, patchJson, postJson } from "../lib/api";
 
 type WorkspaceContextType = {
   session: SessionPayload | null;
@@ -22,6 +22,23 @@ type WorkspaceContextType = {
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeSession(payload: unknown): SessionPayload | null {
+  if (!isRecord(payload) || !isRecord(payload.company) || !isRecord(payload.user)) {
+    return null;
+  }
+
+  return {
+    company: payload.company as unknown as SessionPayload["company"],
+    user: payload.user as unknown as SessionPayload["user"],
+    permissions: asArray<PermissionKey>(payload.permissions),
+    unreadNotifications: typeof payload.unreadNotifications === "number" ? payload.unreadNotifications : 0,
+  };
+}
+
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -33,8 +50,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const payload = await getJson<NotificationItem[]>("/api/v1/notifications");
-      setNotifications(payload);
+      const payload = await getJson<unknown>("/api/v1/notifications");
+      setNotifications(asArray<NotificationItem>(payload));
     } catch {
       setNotifications([]);
     }
@@ -42,8 +59,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSession = async () => {
     try {
-      const payload = await getJson<SessionPayload>("/api/v1/auth/session");
-      setSession(payload);
+      const payload = await getJson<unknown>("/api/v1/auth/session");
+      setSession(normalizeSession(payload));
     } catch {
       setSession(null);
       setNotifications([]);
@@ -57,11 +74,26 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (session) {
-      refreshNotifications();
-    } else {
+    if (!session) {
       setNotifications([]);
+      return;
     }
+    refreshNotifications();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshNotifications();
+      }
+    }, 30_000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void refreshNotifications();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [session]);
 
   useEffect(() => {
@@ -76,10 +108,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const payload = await postJson<SessionPayload>("/api/v1/auth/login", { email, password });
-    setSession(payload);
-    const incomingNotifications = await getJson<NotificationItem[]>("/api/v1/notifications");
-    setNotifications(incomingNotifications);
+    const payload = await postJson<unknown>("/api/v1/auth/login", { email, password });
+    const normalizedSession = normalizeSession(payload);
+    if (!normalizedSession) {
+      throw new ApiError("Session invalide", 500, payload);
+    }
+    setSession(normalizedSession);
+    const incomingNotifications = await getJson<unknown>("/api/v1/notifications");
+    setNotifications(asArray<NotificationItem>(incomingNotifications));
   };
 
   const signOut = async () => {
@@ -96,21 +132,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([refreshNotifications(), refreshSession()]);
   };
 
-  const permissions = session?.permissions || [];
-  const currentUser = session?.user || null;
+  const permissions = asArray<PermissionKey>(session?.permissions);
+  const company = session?.company ?? null;
+  const currentUser = session?.user ?? null;
 
   return (
     <WorkspaceContext.Provider
       value={{
         session,
-        company: session?.company || null,
+        company,
         currentUser,
         permissions,
         notifications,
         isBooting,
-        isAuthenticated: Boolean(session),
-        activeDomain: session?.company.vertical || "",
-        userRole: session?.user.roleLabel || "",
+        isAuthenticated: Boolean(company && currentUser),
+        activeDomain: company?.vertical || "",
+        userRole: currentUser?.roleLabel || "",
         signIn,
         signOut,
         refreshSession,

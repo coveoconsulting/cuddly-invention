@@ -1,23 +1,38 @@
 const faqs = [
   {
-    question: "Ou sont stockees les donnees ?",
+    question: "Comment créer un compte client ?",
     answer:
-      "La base locale est stockee dans `data/app-db.json`. Les clients, visites, opportunites, commandes, preferences et integrations y restent persistants entre deux redemarrages du serveur.",
+      "Menu Comptes → bouton Nouveau compte. Renseignez le nom, l'adresse, le contact et le territoire. Le commercial responsable est automatiquement vous-même, sauf si vous êtes manager ou admin (vous pouvez alors choisir un autre propriétaire).",
   },
   {
-    question: "Comment fonctionne l'authentification ?",
+    question: "Comment planifier une visite terrain ?",
     answer:
-      "Le login cree une session signee cote serveur et la navigation est ensuite filtree par permissions de role. Un commercial ne voit pas les memes donnees qu'un manager ou qu'un profil finance.",
+      "Depuis Visites → Nouvelle visite. Choisissez le client (ou laissez vide pour une prospection), la date, le créneau et l'objectif. Sur le terrain, ouvrez la fiche visite, faites Check-in pour démarrer puis Check-out pour clôturer avec votre compte rendu.",
   },
   {
-    question: "Que fait maintenant l'assistant IA ?",
+    question: "Comment convertir un prospect en client ?",
     answer:
-      "Il lit le contexte reel de la session: clients visibles, commandes, pipeline, alertes et stock. Sans cle Gemini, il fournit un mode fallback base sur les donnees locales.",
+      "Depuis Prospects, ouvrez la fiche du lead et cliquez sur Convertir. Un compte client est créé automatiquement avec les informations du prospect, le statut du prospect passe à converti. L'opération est tracée dans l'audit log.",
   },
   {
-    question: "Qu'est-ce qui reste MVP ?",
+    question: "Que voient les différents rôles ?",
     answer:
-      "Cette version couvre le socle demande: auth, acces, API, persistance, pipeline, visites, commandes, stock, objectifs, roles et integrations. Le hors-ligne mobile, les webhooks et l'ERP temps reel restent des etapes suivantes.",
+      "Commercial : ses comptes, visites, opportunités et commandes. Manager : tout son équipe + validation des remises. Directeur et finance : périmètre global, validation des commandes sensibles. Admin : tout + gestion des utilisateurs.",
+  },
+  {
+    question: "Comment générer le PDF d'une commande ?",
+    answer:
+      "Depuis Commandes, ouvrez la commande concernée et cliquez sur Télécharger PDF. Le document reprend le client, le montant, la remise, le statut et le commercial.",
+  },
+  {
+    question: "Comment réinitialiser mon mot de passe ?",
+    answer:
+      "Sur la page de connexion, cliquez sur Mot de passe oublié. Un lien de réinitialisation est envoyé à votre email. Il reste valable 1 heure. Vous pouvez aussi changer votre mot de passe depuis Paramètres une fois connecté.",
+  },
+  {
+    question: "Pourquoi je ne vois pas certains comptes ?",
+    answer:
+      "Les comptes sont filtrés par votre périmètre (votre équipe et vos territoires). Si vous attendez de voir un compte qui n'apparaît pas, vérifiez avec votre manager qu'il est bien rattaché à votre périmètre.",
   },
 ];
 
@@ -25,8 +40,8 @@ export function FAQView() {
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       <div>
-        <p className="text-sm text-secondary">Documentation rapide</p>
-        <h1 className="text-3xl font-black text-on-surface mt-1">FAQ MVP</h1>
+        <p className="text-sm text-secondary">Aide</p>
+        <h1 className="text-3xl font-black text-on-surface mt-1">Questions fréquentes</h1>
       </div>
 
       <div className="space-y-4">

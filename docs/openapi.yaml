@@ -1,0 +1,210 @@
+openapi: 3.1.0
+info:
+  title: Clerivo Field Sales API
+  version: 1.0.0
+  description: API Express/Postgres pour CRM terrain, commandes, documents, integrations et modules operationnels.
+servers:
+  - url: /api/v1
+security:
+  - cookieAuth: []
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: clerivo_session
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+    ProductInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        ref: { type: string }
+        category: { type: string }
+        price: { type: number }
+        stock: { type: number }
+        status: { type: string, enum: [active, inactive] }
+        image: { type: string }
+        description: { type: string }
+    OrderLineInput:
+      type: object
+      properties:
+        productId: { type: string }
+        productName: { type: string }
+        quantity: { type: number }
+        unitPrice: { type: number }
+        discountPercent: { type: number }
+    OrderInput:
+      type: object
+      required: [clientName]
+      properties:
+        clientName: { type: string }
+        amount: { type: number }
+        discount: { type: number }
+        notes: { type: string }
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLineInput"
+paths:
+  /session:
+    get:
+      summary: Session courante
+      responses:
+        "200": { description: Session active }
+        "401": { description: Non authentifie }
+  /products:
+    get:
+      summary: Liste des produits
+      responses:
+        "200": { description: Catalogue produit }
+    post:
+      summary: Creer un produit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201": { description: Produit cree }
+        "409": { description: Reference deja utilisee }
+  /products/{id}:
+    patch:
+      summary: Modifier un produit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "200": { description: Produit modifie }
+        "404": { description: Produit introuvable }
+  /orders:
+    get:
+      summary: Liste des commandes visibles
+      responses:
+        "200": { description: Commandes }
+    post:
+      summary: Creer une commande avec lignes produit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201": { description: Commande creee }
+  /orders/{id}/pdf:
+    get:
+      summary: Generer le PDF de commande
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: PDF de commande }
+        "404": { description: Commande introuvable }
+  /documents/upload:
+    post:
+      summary: Uploader un document dans Vercel Blob et creer l'enregistrement
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201": { description: Document cree }
+        "503": { description: Blob non configure }
+  /uploads/blob:
+    post:
+      summary: Upload generique Blob pour medias applicatifs
+      responses:
+        "201": { description: URL publique creee }
+  /integrations:
+    get:
+      summary: Liste des integrations
+      responses:
+        "200": { description: Integrations }
+  /integrations/{id}:
+    patch:
+      summary: Configurer une integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Integration modifiee }
+  /integrations/{id}/sync:
+    post:
+      summary: Declencher une synchronisation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Synchronisation enregistree }
+  /billing/checkout:
+    post:
+      summary: Creer une session Stripe Checkout
+      responses:
+        "200": { description: URL Stripe Checkout }
+        "503": { description: Stripe non configure }
+  /billing/webhook:
+    post:
+      security: []
+      summary: Webhook Stripe signe pour appliquer le plan paye
+      responses:
+        "200": { description: Evenement recu }
+        "400": { description: Signature invalide }
+  /contracts:
+    get:
+      summary: Liste des contrats
+      responses:
+        "200": { description: Contrats }
+    post:
+      summary: Creer un contrat
+      responses:
+        "201": { description: Contrat cree }
+  /cases:
+    get:
+      summary: Liste des dossiers service client
+      responses:
+        "200": { description: Dossiers }
+    post:
+      summary: Creer un dossier service client
+      responses:
+        "201": { description: Dossier cree }
+  /campaigns:
+    get:
+      summary: Liste des campagnes
+      responses:
+        "200": { description: Campagnes }
+    post:
+      summary: Creer une campagne
+      responses:
+        "201": { description: Campagne creee }
+  /calls:
+    get:
+      summary: Liste des appels commerciaux
+      responses:
+        "200": { description: Appels }
+    post:
+      summary: Planifier un appel
+      responses:
+        "201": { description: Appel cree }

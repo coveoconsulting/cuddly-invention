@@ -16,16 +16,16 @@ export function Badge({ children, variant = "default", className }: { children: 
   );
 }
 
-export function Button({ 
-  children, 
-  variant = 'primary', 
-  size = 'md',
-  className,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { 
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
-}) {
+  loading?: boolean;
+};
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { children, variant = 'primary', size = 'md', className, loading, disabled, ...props },
+  ref,
+) {
   const variants = {
     primary: "bg-ink text-white hover:bg-[#1b4139] shadow-[0_18px_38px_rgba(21,52,46,0.18)] border border-ink/10",
     secondary: "bg-primary text-carbon hover:bg-[#c3fb7c] shadow-[0_16px_35px_rgba(182,243,106,0.22)] border border-primary/30",
@@ -39,16 +39,24 @@ export function Button({
   };
 
   return (
-    <button 
+    <button
+      ref={ref}
+      disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center rounded-full transition-[color,background-color,transform,box-shadow] duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-px",
+        "relative inline-flex items-center justify-center gap-2 rounded-full transition-[color,background-color,transform,box-shadow] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 disabled:opacity-50 disabled:cursor-not-allowed active:translate-y-px",
         variants[variant],
         sizes[size],
         className
       )}
       {...props}
     >
-      {children}
+      {loading ? (
+        <span
+          aria-hidden
+          className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-70"
+        />
+      ) : null}
+      <span className={cn(loading && "opacity-80")}>{children}</span>
     </button>
   );
-}
+});
