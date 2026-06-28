@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CheckCircle2, Download, FileText, Paperclip, X } from "lucide-react";
-import { ApiError, asArray, getJson, postJson } from "../lib/api";
+import { apiUrl, ApiError, asArray, getJson, postJson } from "../lib/api";
 import { Button } from "../components/ui";
 import { SignaturePad } from "../components/SignaturePad";
 import type { Quote } from "../types";
@@ -91,7 +91,7 @@ export function QuoteSignatureView() {
             : "Votre réponse a bien été enregistrée."}
         </p>
         <a
-          href={`/api/public/quotes/${id}/pdf?token=${encodeURIComponent(token || "")}`}
+          href={apiUrl(`/api/public/quotes/${id}/pdf?token=${encodeURIComponent(token || "")}`)}
           target="_blank" rel="noreferrer"
           className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white"
         >
@@ -112,7 +112,7 @@ export function QuoteSignatureView() {
               <p className="text-sm text-secondary">N° {quote.number}</p>
             </div>
             <a
-              href={`/api/public/quotes/${id}/pdf?token=${encodeURIComponent(token || "")}`}
+              href={apiUrl(`/api/public/quotes/${id}/pdf?token=${encodeURIComponent(token || "")}`)}
               target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1.5 rounded-full bg-surface-container px-3 py-1.5 text-xs font-semibold"
             >

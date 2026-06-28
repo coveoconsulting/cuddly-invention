@@ -11,3 +11,8 @@ data/
 .vercel
 .env*.local
 page*.png
+
+# Android signing secrets — never commit
+*.keystore
+*.jks
+android/keystore.properties

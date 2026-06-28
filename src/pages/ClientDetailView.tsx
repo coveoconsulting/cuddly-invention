@@ -7,6 +7,7 @@ import {
 import { ApiError, getJson, patchJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { CommentsThread } from "../components/CommentsThread";
+import { VoiceIntake } from "../components/VoiceIntake";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { riskLabel } from "../lib/labels";
 import type { ClientDetailPayload, Quote } from "../types";
@@ -223,6 +224,19 @@ export function ClientDetailView() {
         </div>
       </div>
 
+      {can("visits.write") ? (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-primary">Saisie vocale — compte rendu en parlant</p>
+          <VoiceIntake
+            entityName={c.name}
+            clientId={c.id}
+            currency={data.quotes[0]?.currency}
+            onApplied={load}
+            onCreateQuote={createQuote}
+          />
+        </div>
+      ) : null}
+
       {/* tabs */}
       <div className="flex flex-wrap gap-1 border-b border-outline-variant">
         {TABS.map((t) => {
@@ -359,7 +373,7 @@ export function ClientDetailView() {
             {data.quotes.length === 0 ? (
               <p className="text-sm text-secondary">Aucun devis. Cliquez sur "Nouveau devis" en haut.</p>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-outline-variant">
+              <div className="overflow-x-auto rounded-2xl border border-outline-variant">
                 <table className="w-full text-sm">
                   <thead className="bg-surface-container text-xs uppercase text-secondary">
                     <tr>

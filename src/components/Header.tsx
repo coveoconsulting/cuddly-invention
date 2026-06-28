@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, CheckCheck, Loader2, LogOut, Menu, Search } from "lucide-react";
+import { Bell, CheckCheck, ChevronRight, Loader2, LogOut, Menu, Search } from "lucide-react";
 import { Badge, Button } from "./ui";
 import { Logo } from "./Logo";
+import { OfflineIndicator } from "./OfflineIndicator";
 import { useWorkspace } from "../context/WorkspaceContext";
-import { formatDateTime } from "../lib/labels";
+import { formatRelativeTime } from "../lib/labels";
+import type { NotificationLevel } from "../types";
+
+function levelAccent(level: NotificationLevel): string {
+  if (level === "critical") return "border-l-error";
+  if (level === "warning") return "border-l-amber-500";
+  return "border-l-primary";
+}
 import { getJson, postJson } from "../lib/api";
 import { useToast } from "./Toast";
 
@@ -26,12 +34,13 @@ const SECTION_LABELS: Array<{ key: keyof SearchResults; label: string }> = [
   { key: "orders", label: "Commandes" },
 ];
 
-export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) {
+export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: () => void; menuDisabled?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
   const { company, currentUser, notifications, signOut, markNotificationRead, refreshNotifications } = useWorkspace();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -69,14 +78,15 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) 
         setShowNotifications(false);
       }
     };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
   }, []);
 
   // Close panels on route change
   useEffect(() => {
     setSearchOpen(false);
     setShowNotifications(false);
+    setMobileSearchOpen(false);
   }, [location.pathname]);
 
   // Cmd/Ctrl+K shortcut and escape
@@ -115,6 +125,7 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) 
     : 0;
   const goToHit = (hit: SearchHit) => {
     setSearchOpen(false);
+    setMobileSearchOpen(false);
     setSearchQuery("");
     navigate(hit.path);
   };
@@ -149,13 +160,14 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) 
   let cursor = -1;
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-outline-variant bg-surface/80 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-6">
+    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-outline-variant bg-surface/80 px-4 pb-3 pt-safe backdrop-blur-xl sm:px-5 lg:px-6">
       <div className="flex min-w-0 items-center gap-2 lg:hidden">
         <button
           type="button"
           aria-label="Ouvrir le menu"
           onClick={() => onOpenMobileMenu?.()}
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-white/80 hover:bg-white"
+          disabled={menuDisabled}
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-white/80 hover:bg-white disabled:pointer-events-none"
         >
           <Menu className="h-5 w-5 text-secondary" />
         </button>
@@ -237,6 +249,17 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) 
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Rechercher"
+          onClick={() => setMobileSearchOpen(true)}
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-white/80 transition-all hover:bg-white hover:shadow-sm lg:hidden"
+        >
+          <Search className="h-4 w-4 text-secondary" />
+        </button>
+
+        <OfflineIndicator />
+
         <div ref={notifRef} className="relative">
           <button
             type="button"
@@ -266,7 +289,7 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) 
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -8, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
-                className="absolute right-0 z-40 mt-2 w-[360px] overflow-hidden rounded-xl border border-outline-variant bg-white shadow-[0_24px_60px_rgba(20,33,28,0.18)]"
+                className="fixed inset-x-3 top-[4.25rem] z-40 overflow-hidden rounded-xl border border-outline-variant bg-white shadow-[0_24px_60px_rgba(20,33,28,0.18)] lg:absolute lg:inset-x-auto lg:right-0 lg:top-full lg:mt-2 lg:w-[360px]"
               >
                 <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
                   <div>
@@ -299,24 +322,36 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) 
                             setShowNotifications(false);
                           }
                         }}
-                        className="block w-full border-b border-outline-variant px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface"
+                        className={`block w-full border-b border-l-4 border-outline-variant px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface ${levelAccent(notification.level)} ${
+                          notification.read ? "" : "bg-primary/5"
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 space-y-1">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-on-surface">{notification.title}</p>
+                              <p className={`text-sm text-on-surface ${notification.read ? "font-semibold" : "font-bold"}`}>
+                                {notification.title}
+                              </p>
                               {!notification.read ? <Badge variant="success">Nouveau</Badge> : null}
                             </div>
                             <p className="text-xs text-secondary">{notification.body}</p>
                           </div>
                         </div>
                         <p className="mt-2 text-[11px] text-secondary">
-                          {formatDateTime(notification.createdAt)}
+                          {formatRelativeTime(notification.createdAt)}
                         </p>
                       </button>
                     ))
                   )}
                 </div>
+                <Link
+                  to="/notifications"
+                  onClick={() => setShowNotifications(false)}
+                  className="flex items-center justify-center gap-1 border-t border-outline-variant bg-surface-container-low px-4 py-2.5 text-xs font-semibold text-on-surface hover:bg-surface-container"
+                >
+                  Voir toutes les notifications
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Link>
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -349,6 +384,63 @@ export function Header({ onOpenMobileMenu }: { onOpenMobileMenu?: () => void }) 
           <LogOut className="h-4 w-4 text-secondary" />
         </button>
       </div>
+
+      {/* Mobile full-screen search */}
+      {mobileSearchOpen ? (
+        <div className="fixed inset-0 z-50 flex flex-col bg-surface lg:hidden">
+          <div className="flex items-center gap-2 border-b border-outline-variant px-3 pb-3 pt-safe">
+            <div className="flex flex-1 items-center gap-2 rounded-lg border border-outline-variant bg-white px-3 py-2.5">
+              <Search className="h-4 w-4 shrink-0 text-secondary" />
+              <input
+                autoFocus
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Rechercher un compte, une visite…"
+                className="w-full bg-transparent text-base text-on-surface outline-none placeholder:text-secondary"
+              />
+              {searchLoading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-secondary" /> : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileSearchOpen(false)}
+              className="shrink-0 px-2 py-2 text-sm font-semibold text-secondary"
+            >
+              Fermer
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {searchQuery.trim().length < 2 ? (
+              <p className="px-4 py-6 text-sm text-secondary">Tapez au moins 2 caractères pour rechercher.</p>
+            ) : totalHits === 0 && !searchLoading ? (
+              <p className="px-4 py-6 text-sm text-secondary">Aucun résultat.</p>
+            ) : (
+              SECTION_LABELS.map((section) => {
+                const hits = searchResults?.[section.key] ?? [];
+                if (hits.length === 0) return null;
+                return (
+                  <div key={section.key} className="border-b border-outline-variant last:border-b-0">
+                    <p className="bg-surface-container-low px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-secondary">
+                      {section.label}
+                    </p>
+                    {hits.map((hit) => (
+                      <button
+                        key={`${section.key}-${hit.id}`}
+                        type="button"
+                        onClick={() => goToHit(hit)}
+                        className="block w-full border-b border-outline-variant/40 px-4 py-3 text-left last:border-b-0"
+                      >
+                        <p className="font-semibold text-on-surface">{hit.label}</p>
+                        {hit.sub ? <p className="text-[11px] text-secondary">{hit.sub}</p> : null}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }

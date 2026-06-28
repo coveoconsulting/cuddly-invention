@@ -9,6 +9,7 @@ type AuthedRequest = Request & {
 type Deps = {
   pool: Pool;
   requireAuth: RequestHandler;
+  requirePermission: (permission: string) => RequestHandler;
   asyncRoute: <T extends Request = Request>(
     handler: (req: T, res: Response) => unknown,
   ) => RequestHandler;
@@ -176,6 +177,23 @@ async function postToMeta(
   }
 }
 
+async function markReadOnMeta(settings: WhatsAppSettingsRow, waMessageId: string): Promise<void> {
+  if (!settings.access_token || !settings.phone_number_id || !waMessageId) return;
+  const url = `${META_GRAPH}/${settings.phone_number_id}/messages`;
+  await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${settings.access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: waMessageId,
+    }),
+  }).catch(() => undefined);
+}
+
 function verifyMetaSignature(appSecret: string, rawBody: Buffer, signatureHeader: string | undefined) {
   if (!appSecret) return true; // not configured → skip enforcement (dev)
   if (!signatureHeader) return false;
@@ -276,7 +294,7 @@ async function processInboundPayload(pool: Pool, body: any, logInfo: Deps["logIn
 }
 
 export function mountWhatsAppRoutes(app: Express, deps: Deps) {
-  const { pool, requireAuth, asyncRoute, logInfo, logError } = deps;
+  const { pool, requireAuth, requirePermission, asyncRoute, logInfo, logError } = deps;
 
   // --- Webhook (no auth) — needs raw body for signature ---
   app.get("/api/whatsapp/webhook", (req: Request, res: Response) => {
@@ -328,6 +346,7 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
   app.get(
     `${api}/settings`,
     requireAuth,
+    requirePermission("clients.read"),
     asyncRoute(async (_req, res) => {
       const settings = await getSettings(pool);
       res.json(sanitizeSettings(settings));
@@ -337,6 +356,7 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
   app.patch(
     `${api}/settings`,
     requireAuth,
+    requirePermission("settings.write"),
     asyncRoute(async (req: AuthedRequest, res) => {
       if (req.authUser?.role !== "admin" && req.authUser?.role !== "director") {
         res.status(403).json({ error: "Accès refusé" });
@@ -373,11 +393,27 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
   app.get(
     `${api}/contacts`,
     requireAuth,
-    asyncRoute(async (_req, res) => {
+    requirePermission("clients.read"),
+    asyncRoute(async (req: AuthedRequest, res) => {
+      const filter = String(req.query.filter || "");
+      const userId = req.authUser?.id ?? "";
+      const conditions: string[] = [];
+      const params: unknown[] = [];
+      if (filter === "mine" && userId) {
+        params.push(userId);
+        conditions.push(`c.assigned_user_id = $${params.length}`);
+      } else if (filter === "unassigned") {
+        conditions.push(`c.assigned_user_id IS NULL`);
+      } else if (filter === "unread") {
+        conditions.push(`c.unread_count > 0`);
+      } else if (filter === "unlinked") {
+        conditions.push(`c.client_id IS NULL AND c.prospect_id IS NULL`);
+      }
+      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const { rows } = await pool.query(
         `SELECT c.id, c.phone, c.display_name, c.profile_name, c.client_id, c.prospect_id,
-                c.last_message_at, c.unread_count,
-                cl.name AS client_name, pr.name AS prospect_name,
+                c.assigned_user_id, c.last_message_at, c.last_inbound_at, c.unread_count,
+                cl.name AS client_name, pr.name AS prospect_name, au.name AS assigned_name,
                 (SELECT body FROM whatsapp_messages m
                    WHERE m.contact_id = c.id
                    ORDER BY m.created_at DESC LIMIT 1) AS last_body,
@@ -387,8 +423,11 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
            FROM whatsapp_contacts c
            LEFT JOIN clients cl ON cl.id = c.client_id
            LEFT JOIN prospects pr ON pr.id = c.prospect_id
+           LEFT JOIN users au ON au.id = c.assigned_user_id
+          ${where}
           ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
           LIMIT 500`,
+        params,
       );
       res.json(
         rows.map((r) => ({
@@ -399,7 +438,10 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
           clientId: r.client_id,
           prospectId: r.prospect_id,
           linkedName: r.client_name || r.prospect_name || null,
+          assignedUserId: r.assigned_user_id ?? null,
+          assignedName: r.assigned_name ?? null,
           lastMessageAt: r.last_message_at ? new Date(r.last_message_at).toISOString() : null,
+          lastInboundAt: r.last_inbound_at ? new Date(r.last_inbound_at).toISOString() : null,
           unreadCount: Number(r.unread_count || 0),
           lastBody: r.last_body ?? "",
           lastType: r.last_type ?? null,
@@ -408,9 +450,36 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
     }),
   );
 
+  // Active users that can own a conversation (assignment picker).
+  app.get(
+    `${api}/agents`,
+    requireAuth,
+    requirePermission("clients.read"),
+    asyncRoute(async (_req, res) => {
+      const { rows } = await pool.query(
+        `SELECT id, name, initials FROM users WHERE active = TRUE ORDER BY name ASC LIMIT 200`,
+      );
+      res.json(rows.map((r) => ({ id: r.id, name: r.name, initials: r.initials })));
+    }),
+  );
+
+  // Global unread counter (shared inbox badge).
+  app.get(
+    `${api}/unread-count`,
+    requireAuth,
+    requirePermission("clients.read"),
+    asyncRoute(async (_req, res) => {
+      const { rows } = await pool.query(
+        `SELECT COALESCE(SUM(unread_count), 0)::int AS total FROM whatsapp_contacts`,
+      );
+      res.json({ total: Number(rows[0]?.total || 0) });
+    }),
+  );
+
   app.post(
     `${api}/contacts`,
     requireAuth,
+    requirePermission("clients.write"),
     asyncRoute(async (req, res) => {
       const phone = String(req.body?.phone || "");
       const displayName = req.body?.displayName ? String(req.body.displayName) : undefined;
@@ -436,6 +505,7 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
   app.get(
     `${api}/contacts/:id/messages`,
     requireAuth,
+    requirePermission("clients.read"),
     asyncRoute(async (req, res) => {
       const { rows } = await pool.query(
         `SELECT * FROM whatsapp_messages
@@ -452,18 +522,240 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
   app.post(
     `${api}/contacts/:id/read`,
     requireAuth,
+    requirePermission("clients.write"),
     asyncRoute(async (req, res) => {
       await pool.query(
         `UPDATE whatsapp_contacts SET unread_count = 0 WHERE id = $1`,
         [req.params.id],
       );
+      // Send a read receipt to Meta for the latest inbound message (blue ticks).
+      try {
+        const { rows } = await pool.query<{ wa_message_id: string | null }>(
+          `SELECT wa_message_id FROM whatsapp_messages
+             WHERE contact_id = $1 AND direction = 'inbound' AND wa_message_id IS NOT NULL
+             ORDER BY created_at DESC LIMIT 1`,
+          [req.params.id],
+        );
+        const waId = rows[0]?.wa_message_id;
+        if (waId) {
+          const settings = await getSettings(pool);
+          await markReadOnMeta(settings, waId);
+        }
+      } catch (e) {
+        logInfo("whatsapp.read_receipt_failed", { err: (e as Error).message });
+      }
       res.json({ ok: true });
+    }),
+  );
+
+  // Assign a conversation to a sales rep (or unassign with userId = null).
+  app.post(
+    `${api}/contacts/:id/assign`,
+    requireAuth,
+    requirePermission("clients.write"),
+    asyncRoute(async (req, res) => {
+      const rawUserId = (req.body as { userId?: string | null } | undefined)?.userId;
+      const userId = rawUserId ? String(rawUserId) : null;
+      if (userId) {
+        const check = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND active = TRUE`, [userId]);
+        if (check.rowCount === 0) {
+          res.status(400).json({ error: "Utilisateur introuvable" });
+          return;
+        }
+      }
+      const updated = await pool.query(
+        `UPDATE whatsapp_contacts SET assigned_user_id = $2 WHERE id = $1 RETURNING id`,
+        [req.params.id, userId],
+      );
+      if (updated.rowCount === 0) {
+        res.status(404).json({ error: "Contact introuvable" });
+        return;
+      }
+      res.json({ ok: true, assignedUserId: userId });
+    }),
+  );
+
+  // Link a conversation to an existing client or prospect.
+  app.post(
+    `${api}/contacts/:id/link`,
+    requireAuth,
+    requirePermission("clients.write"),
+    asyncRoute(async (req, res) => {
+      const b = (req.body || {}) as { clientId?: string | null; prospectId?: string | null };
+      const clientId = b.clientId ? String(b.clientId) : null;
+      const prospectId = b.prospectId ? String(b.prospectId) : null;
+      let linkedName: string | null = null;
+      if (clientId) {
+        const r = await pool.query<{ name: string }>(`SELECT name FROM clients WHERE id = $1`, [clientId]);
+        if (r.rowCount === 0) { res.status(400).json({ error: "Client introuvable" }); return; }
+        linkedName = r.rows[0].name;
+      } else if (prospectId) {
+        const r = await pool.query<{ name: string }>(`SELECT name FROM prospects WHERE id = $1`, [prospectId]);
+        if (r.rowCount === 0) { res.status(400).json({ error: "Prospect introuvable" }); return; }
+        linkedName = r.rows[0].name;
+      } else {
+        res.status(400).json({ error: "clientId ou prospectId requis" });
+        return;
+      }
+      const updated = await pool.query(
+        `UPDATE whatsapp_contacts
+            SET client_id = $2, prospect_id = $3,
+                display_name = CASE WHEN $4 <> '' THEN $4 ELSE display_name END
+          WHERE id = $1 RETURNING id`,
+        [req.params.id, clientId, prospectId, linkedName ?? ""],
+      );
+      if (updated.rowCount === 0) {
+        res.status(404).json({ error: "Contact introuvable" });
+        return;
+      }
+      res.json({ ok: true, clientId, prospectId, linkedName });
+    }),
+  );
+
+  // Create a prospect straight from a WhatsApp conversation and link it.
+  app.post(
+    `${api}/contacts/:id/create-prospect`,
+    requireAuth,
+    requirePermission("clients.write"),
+    asyncRoute(async (req: AuthedRequest, res) => {
+      const ownerId = req.authUser?.id ?? "";
+      const contactRow = await pool.query<{ id: string; phone: string; display_name: string; profile_name: string; prospect_id: string | null }>(
+        `SELECT id, phone, display_name, profile_name, prospect_id FROM whatsapp_contacts WHERE id = $1`,
+        [req.params.id],
+      );
+      const contact = contactRow.rows[0];
+      if (!contact) { res.status(404).json({ error: "Contact introuvable" }); return; }
+      if (contact.prospect_id) { res.status(409).json({ error: "Déjà lié à un prospect" }); return; }
+
+      // Resolve a territory for the new prospect: the owner's first territory, else any.
+      const terr = await pool.query<{ territory_id: string }>(
+        `SELECT territory_id FROM user_territories WHERE user_id = $1 ORDER BY position ASC LIMIT 1`,
+        [ownerId],
+      );
+      let territoryId = terr.rows[0]?.territory_id ?? null;
+      if (!territoryId) {
+        const anyTerr = await pool.query<{ id: string }>(`SELECT id FROM territories ORDER BY id ASC LIMIT 1`);
+        territoryId = anyTerr.rows[0]?.id ?? null;
+      }
+      if (!territoryId || !ownerId) {
+        res.status(400).json({ error: "Impossible de déterminer le territoire/propriétaire" });
+        return;
+      }
+
+      const name = (req.body as { name?: string } | undefined)?.name?.trim()
+        || contact.display_name
+        || contact.profile_name
+        || `+${contact.phone}`;
+      const prospectId = `prospect-${crypto.randomUUID()}`;
+      await pool.query(
+        `INSERT INTO prospects (id, name, contact_name, phone, email, source, status, score, owner_user_id, territory_id, notes)
+         VALUES ($1,$2,$3,$4,'','WhatsApp','new',50,$5,$6,'Créé depuis une conversation WhatsApp.')`,
+        [prospectId, name, contact.profile_name || "", contact.phone, ownerId, territoryId],
+      );
+      await pool.query(
+        `UPDATE whatsapp_contacts SET prospect_id = $2, display_name = $3 WHERE id = $1`,
+        [contact.id, prospectId, name],
+      );
+      await pool.query(
+        `INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, meta)
+         VALUES ($1,$2,'prospect.created','prospect',$3,$4)`,
+        [newId("aud"), ownerId, prospectId, JSON.stringify({ via: "whatsapp", contactId: contact.id })],
+      ).catch(() => undefined);
+      res.json({ ok: true, prospectId, name });
+    }),
+  );
+
+  // Log the conversation as a CRM activity on the linked client/prospect.
+  app.post(
+    `${api}/contacts/:id/log-activity`,
+    requireAuth,
+    requirePermission("clients.write"),
+    asyncRoute(async (req: AuthedRequest, res) => {
+      const ownerId = req.authUser?.id ?? "";
+      const contactRow = await pool.query<{ id: string; display_name: string; phone: string; client_id: string | null; prospect_id: string | null }>(
+        `SELECT id, display_name, phone, client_id, prospect_id FROM whatsapp_contacts WHERE id = $1`,
+        [req.params.id],
+      );
+      const contact = contactRow.rows[0];
+      if (!contact) { res.status(404).json({ error: "Contact introuvable" }); return; }
+      if (!contact.client_id && !contact.prospect_id) {
+        res.status(400).json({ error: "Liez d'abord la conversation à un client ou prospect" });
+        return;
+      }
+      const note = (req.body as { note?: string } | undefined)?.note?.trim() || "";
+      const stats = await pool.query<{ total: string; last_body: string | null }>(
+        `SELECT COUNT(*)::text AS total,
+                (SELECT body FROM whatsapp_messages WHERE contact_id = $1 ORDER BY created_at DESC LIMIT 1) AS last_body
+           FROM whatsapp_messages WHERE contact_id = $1`,
+        [contact.id],
+      );
+      const total = stats.rows[0]?.total ?? "0";
+      const lastBody = stats.rows[0]?.last_body ?? "";
+      const content = note
+        || `Conversation WhatsApp (${total} message(s)). Dernier message : ${lastBody || "—"}`;
+      const activityId = `activity-${crypto.randomUUID()}`;
+      await pool.query(
+        `INSERT INTO activities (id, type, subject, content, owner_user_id, client_id, prospect_id, completed_at)
+         VALUES ($1,'note',$2,$3,$4,$5,$6,NOW())`,
+        [
+          activityId,
+          `Échange WhatsApp · +${contact.phone}`,
+          content,
+          ownerId,
+          contact.client_id,
+          contact.prospect_id,
+        ],
+      );
+      res.json({ ok: true, activityId });
+    }),
+  );
+
+  // Approved WhatsApp message templates from the WABA (for out-of-window sends).
+  app.get(
+    `${api}/templates`,
+    requireAuth,
+    requirePermission("clients.read"),
+    asyncRoute(async (_req, res) => {
+      const settings = await getSettings(pool);
+      if (!settings.access_token || !settings.business_account_id) {
+        res.json([]);
+        return;
+      }
+      try {
+        const url = `${META_GRAPH}/${settings.business_account_id}/message_templates?status=APPROVED&limit=200`;
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${settings.access_token}` } });
+        const data = (await r.json().catch(() => ({}))) as {
+          data?: Array<{
+            name: string;
+            language: string;
+            category: string;
+            status: string;
+            components?: Array<{ type: string; text?: string }>;
+          }>;
+          error?: { message?: string };
+        };
+        if (!r.ok) {
+          res.status(502).json({ error: data?.error?.message || `HTTP ${r.status}` });
+          return;
+        }
+        const templates = (data.data ?? []).map((t) => ({
+          name: t.name,
+          language: t.language,
+          category: t.category,
+          status: t.status,
+          body: (t.components ?? []).find((c) => c.type === "BODY")?.text ?? "",
+        }));
+        res.json(templates);
+      } catch (e) {
+        res.status(502).json({ error: (e as Error).message });
+      }
     }),
   );
 
   app.post(
     `${api}/contacts/:id/messages`,
     requireAuth,
+    requirePermission("clients.write"),
     asyncRoute(async (req: AuthedRequest, res) => {
       const contactId = req.params.id;
       const body = (req.body || {}) as {
@@ -586,6 +878,7 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
   app.get(
     "/api/whatsapp/media/:mediaId",
     requireAuth,
+    requirePermission("clients.read"),
     asyncRoute(async (req, res) => {
       const settings = await getSettings(pool);
       if (!settings.access_token) {
@@ -635,6 +928,7 @@ export function mountWhatsAppRoutes(app: Express, deps: Deps) {
   app.get(
     `${api}/stream`,
     requireAuth,
+    requirePermission("clients.read"),
     (req: Request, res: Response) => {
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");

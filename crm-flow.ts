@@ -10,6 +10,7 @@ type AuthedRequest = Request & {
 export type CrmFlowDeps = {
   pool: Pool;
   requireAuth: RequestHandler;
+  requirePermission: (permission: string) => RequestHandler;
   asyncRoute: <T extends Request = Request>(
     handler: (req: T, res: Response) => unknown,
   ) => RequestHandler;
@@ -19,7 +20,13 @@ export type CrmFlowDeps = {
   sendEmail?: (to: string, subject: string, html: string, text: string) => Promise<boolean>;
 };
 
-const POWER_ROLES = new Set(["admin", "director"]);
+// Roles allowed to manage shared CRM resources (settings, others' comments).
+const POWER_ROLES = new Set(["super_admin", "admin", "director"]);
+// Roles with global read visibility — mirrors GLOBAL_READ_ROLES in server.ts so the
+// "who can see whose data" rule is identical across both backend layers.
+const GLOBAL_READ_ROLES = new Set([
+  "super_admin", "admin", "director", "finance", "logistics", "support", "viewer",
+]);
 const ENTITY_TYPES = new Set(["client", "prospect", "opportunity", "quote", "order", "visit"]);
 
 function newId(prefix: string) {
@@ -37,7 +44,7 @@ function round2(n: number) {
 
 async function visibleUserIds(pool: Pool, actor: AuthedRequest["authUser"]): Promise<Set<string> | "all"> {
   if (!actor) return new Set();
-  if (POWER_ROLES.has(actor.role)) return "all";
+  if (GLOBAL_READ_ROLES.has(actor.role)) return "all";
   if (actor.role === "manager" && actor.teamId) {
     const { rows } = await pool.query<{ id: string }>(
       `SELECT id FROM users WHERE team_id = $1`,
@@ -50,6 +57,18 @@ async function visibleUserIds(pool: Pool, actor: AuthedRequest["authUser"]): Pro
 
 function canSee(visible: Set<string> | "all", ownerUserId: string) {
   return visible === "all" || visible.has(ownerUserId);
+}
+
+// Horizontal-access guard for quote sub-resources. Every /quotes/:id* mutation must
+// confirm the caller can see the quote's owner, otherwise a rep could alter another
+// rep's quote (lines/prices/discounts, sending, cancelling) just by knowing its id.
+async function ensureQuoteOwnerVisible(
+  pool: Pool,
+  actor: AuthedRequest["authUser"],
+  ownerUserId: string,
+): Promise<boolean> {
+  const visible = await visibleUserIds(pool, actor);
+  return canSee(visible, ownerUserId);
 }
 
 async function nextQuoteNumber(pool: Pool): Promise<{ number: string; prefix: string }> {
@@ -364,11 +383,11 @@ async function generateQuotePdf(quote: ReturnType<typeof mapQuote>, settings: Re
 // ---------- Routes --------------------------------------------------------
 
 export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
-  const { pool, requireAuth, asyncRoute, logInfo, logError, publicBaseUrl, sendEmail } = deps;
+  const { pool, requireAuth, requirePermission, asyncRoute, logInfo, logError, publicBaseUrl, sendEmail } = deps;
   const API = "/api/v1";
 
   // ------ CRM settings ----------------------------------------------------
-  app.get(`${API}/crm-settings`, requireAuth, asyncRoute(async (_req, res) => {
+  app.get(`${API}/crm-settings`, requireAuth, requirePermission("settings.read"), asyncRoute(async (_req, res) => {
     const { rows } = await pool.query(`SELECT * FROM crm_settings WHERE id='default'`);
     const r = rows[0] || {};
     res.json({
@@ -384,7 +403,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     });
   }));
 
-  app.patch(`${API}/crm-settings`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.patch(`${API}/crm-settings`, requireAuth, requirePermission("settings.write"), asyncRoute(async (req: AuthedRequest, res) => {
     if (!POWER_ROLES.has(req.authUser?.role ?? "")) {
       res.status(403).json({ error: "Accès refusé" }); return;
     }
@@ -416,7 +435,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   }));
 
   // ------ Comments --------------------------------------------------------
-  app.get(`${API}/comments`, requireAuth, asyncRoute(async (req, res) => {
+  app.get(`${API}/comments`, requireAuth, requirePermission("clients.read"), asyncRoute(async (req, res) => {
     const entityType = String(req.query.entityType || "");
     const entityId = String(req.query.entityId || "");
     if (!ENTITY_TYPES.has(entityType) || !entityId) {
@@ -445,7 +464,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     })));
   }));
 
-  app.post(`${API}/comments`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.post(`${API}/comments`, requireAuth, requirePermission("clients.write"), asyncRoute(async (req: AuthedRequest, res) => {
     const b = req.body || {};
     const entityType = String(b.entityType || "");
     const entityId = String(b.entityId || "");
@@ -462,7 +481,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json({ id });
   }));
 
-  app.delete(`${API}/comments/:id`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.delete(`${API}/comments/:id`, requireAuth, requirePermission("clients.write"), asyncRoute(async (req: AuthedRequest, res) => {
     const { rows } = await pool.query(`SELECT author_user_id FROM comments WHERE id=$1`, [req.params.id]);
     const author = rows[0]?.author_user_id as string | undefined;
     if (!author) { res.status(404).json({ error: "Introuvable" }); return; }
@@ -474,7 +493,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   }));
 
   // ------ Client detail (extended) ---------------------------------------
-  app.get(`${API}/clients/:id/detail`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.get(`${API}/clients/:id/detail`, requireAuth, requirePermission("clients.read"), asyncRoute(async (req: AuthedRequest, res) => {
     const id = req.params.id;
     const visible = await visibleUserIds(pool, req.authUser);
     const { rows } = await pool.query(
@@ -517,7 +536,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   }));
 
   // Extended PATCH for client (extra fields not in original)
-  app.patch(`${API}/clients/:id/extra`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.patch(`${API}/clients/:id/extra`, requireAuth, requirePermission("clients.write"), asyncRoute(async (req: AuthedRequest, res) => {
     if (!req.authUser) { res.status(401).json({ error: "Auth requise" }); return; }
     const b = req.body || {};
     const { rows } = await pool.query(`SELECT owner_user_id FROM clients WHERE id=$1`, [req.params.id]);
@@ -544,7 +563,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   }));
 
   // ------ Prospect detail ------------------------------------------------
-  app.get(`${API}/prospects/:id/detail`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.get(`${API}/prospects/:id/detail`, requireAuth, requirePermission("clients.read"), asyncRoute(async (req: AuthedRequest, res) => {
     const id = req.params.id;
     const { rows } = await pool.query(
       `SELECT p.*, t.label AS territory_label, u.name AS owner_name
@@ -567,7 +586,17 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json({
       prospect: {
         id: p.id, name: p.name, contactName: p.contact_name ?? "", phone: p.phone ?? "",
-        email: p.email ?? "", source: p.source ?? "", status: p.status, score: p.score,
+        email: p.email ?? "", source: p.source ?? "",
+        team: p.team ?? "field", leadSource: p.lead_source ?? "societe",
+        need: p.need ?? "", solutionFit: p.solution_fit ?? "",
+        // Field intake
+        address: p.address ?? "",
+        zone: p.zone ?? "",
+        establishmentType: p.establishment_type ?? "",
+        potential: p.potential ?? null,
+        competitor: p.competitor ?? "",
+        nextVisitAt: p.next_visit_at ? new Date(p.next_visit_at).toISOString() : null,
+        status: p.status, score: p.score,
         notes: p.notes ?? "", ownerUserId: p.owner_user_id, ownerName: p.owner_name ?? "",
         territoryId: p.territory_id, territoryLabel: p.territory_label ?? "",
         convertedClientId: p.converted_client_id, convertedAt: p.converted_at,
@@ -583,7 +612,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   }));
 
   // ------ Quotes ----------------------------------------------------------
-  app.get(`${API}/quotes`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.get(`${API}/quotes`, requireAuth, requirePermission("orders.read"), asyncRoute(async (req: AuthedRequest, res) => {
     const visible = await visibleUserIds(pool, req.authUser);
     const filters: string[] = [];
     const values: unknown[] = [];
@@ -614,7 +643,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json(rows.map((r) => mapQuote(r)));
   }));
 
-  app.post(`${API}/quotes`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.post(`${API}/quotes`, requireAuth, requirePermission("orders.write"), asyncRoute(async (req: AuthedRequest, res) => {
     if (!req.authUser) { res.status(401).json({ error: "Auth requise" }); return; }
     const b = req.body || {};
     const clientId = b.clientId ? String(b.clientId) : null;
@@ -687,7 +716,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json({ id, number });
   }));
 
-  app.get(`${API}/quotes/:id`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.get(`${API}/quotes/:id`, requireAuth, requirePermission("orders.read"), asyncRoute(async (req: AuthedRequest, res) => {
     const data = await loadQuote(pool, req.params.id);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
     const visible = await visibleUserIds(pool, req.authUser);
@@ -697,7 +726,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json(mapQuote(data.quote, data.lines, data.attachments));
   }));
 
-  app.patch(`${API}/quotes/:id`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.patch(`${API}/quotes/:id`, requireAuth, requirePermission("orders.write"), asyncRoute(async (req: AuthedRequest, res) => {
     const b = req.body || {};
     const data = await loadQuote(pool, req.params.id);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
@@ -740,10 +769,13 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json(refreshed ? mapQuote(refreshed.quote, refreshed.lines, refreshed.attachments) : null);
   }));
 
-  app.post(`${API}/quotes/:id/lines`, requireAuth, asyncRoute(async (req, res) => {
+  app.post(`${API}/quotes/:id/lines`, requireAuth, requirePermission("orders.write"), asyncRoute(async (req: AuthedRequest, res) => {
     const id = req.params.id;
     const data = await loadQuote(pool, id);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
+    if (!(await ensureQuoteOwnerVisible(pool, req.authUser, data.quote.owner_user_id as string))) {
+      res.status(404).json({ error: "Devis introuvable" }); return;
+    }
     if (data.quote.status === "signed") { res.status(409).json({ error: "Devis signé" }); return; }
 
     const b = req.body || {};
@@ -767,10 +799,13 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json({ id: lineId });
   }));
 
-  app.patch(`${API}/quotes/:quoteId/lines/:lineId`, requireAuth, asyncRoute(async (req, res) => {
+  app.patch(`${API}/quotes/:quoteId/lines/:lineId`, requireAuth, requirePermission("orders.write"), asyncRoute(async (req: AuthedRequest, res) => {
     const { quoteId, lineId } = req.params;
     const data = await loadQuote(pool, quoteId);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
+    if (!(await ensureQuoteOwnerVisible(pool, req.authUser, data.quote.owner_user_id as string))) {
+      res.status(404).json({ error: "Devis introuvable" }); return;
+    }
     if (data.quote.status === "signed") { res.status(409).json({ error: "Devis signé" }); return; }
     const b = req.body || {};
     const { rows } = await pool.query(`SELECT * FROM quote_lines WHERE id=$1 AND quote_id=$2`, [lineId, quoteId]);
@@ -790,16 +825,19 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json({ ok: true });
   }));
 
-  app.delete(`${API}/quotes/:quoteId/lines/:lineId`, requireAuth, asyncRoute(async (req, res) => {
+  app.delete(`${API}/quotes/:quoteId/lines/:lineId`, requireAuth, requirePermission("orders.write"), asyncRoute(async (req: AuthedRequest, res) => {
     const data = await loadQuote(pool, req.params.quoteId);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
+    if (!(await ensureQuoteOwnerVisible(pool, req.authUser, data.quote.owner_user_id as string))) {
+      res.status(404).json({ error: "Devis introuvable" }); return;
+    }
     if (data.quote.status === "signed") { res.status(409).json({ error: "Devis signé" }); return; }
     await pool.query(`DELETE FROM quote_lines WHERE id=$1 AND quote_id=$2`, [req.params.lineId, req.params.quoteId]);
     await recomputeQuoteTotals(pool, req.params.quoteId);
     res.json({ ok: true });
   }));
 
-  app.delete(`${API}/quotes/:id`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.delete(`${API}/quotes/:id`, requireAuth, requirePermission("orders.delete"), asyncRoute(async (req: AuthedRequest, res) => {
     const data = await loadQuote(pool, req.params.id);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
     if (data.quote.status === "signed") { res.status(409).json({ error: "Devis signé" }); return; }
@@ -812,15 +850,27 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   }));
 
   // Generate a public signing link
-  app.post(`${API}/quotes/:id/send`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.post(`${API}/quotes/:id/send`, requireAuth, requirePermission("orders.write"), asyncRoute(async (req: AuthedRequest, res) => {
     const data = await loadQuote(pool, req.params.id);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
+    if (!(await ensureQuoteOwnerVisible(pool, req.authUser, data.quote.owner_user_id as string))) {
+      res.status(404).json({ error: "Devis introuvable" }); return;
+    }
     if (data.quote.status === "signed") { res.status(409).json({ error: "Devis signé" }); return; }
     const secret = await ensureSignatureSecret(pool);
     const exp = Date.now() + 60 * 86400000;
     const token = signToken(secret, { qid: data.quote.id, exp });
     const link = `${publicBaseUrl()}/quotes/${data.quote.id}/sign/${token}`;
     await pool.query(`UPDATE quotes SET status='sent', sent_at=NOW() WHERE id=$1`, [req.params.id]);
+
+    // Advance the linked prospect in the funnel once a quote has been sent.
+    if (data.quote.prospect_id) {
+      await pool.query(
+        `UPDATE prospects SET status='quoted'
+           WHERE id=$1 AND status IN ('new','contacted','qualified')`,
+        [data.quote.prospect_id],
+      ).catch((e) => logError("quote.prospect_stage_failed", { error: (e as Error).message }));
+    }
 
     const email = (req.body?.email as string | undefined) || (data.quote.client_email as string | undefined) || "";
     if (email && sendEmail) {
@@ -838,7 +888,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.json({ link, status: "sent" });
   }));
 
-  app.get(`${API}/quotes/:id/pdf`, requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  app.get(`${API}/quotes/:id/pdf`, requireAuth, requirePermission("orders.read"), asyncRoute(async (req: AuthedRequest, res) => {
     const data = await loadQuote(pool, req.params.id);
     if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
     const visible = await visibleUserIds(pool, req.authUser);
@@ -852,7 +902,13 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     res.send(buf);
   }));
 
-  app.post(`${API}/quotes/:id/cancel`, requireAuth, asyncRoute(async (req, res) => {
+  app.post(`${API}/quotes/:id/cancel`, requireAuth, requirePermission("orders.write"), asyncRoute(async (req: AuthedRequest, res) => {
+    const data = await loadQuote(pool, req.params.id);
+    if (!data) { res.status(404).json({ error: "Devis introuvable" }); return; }
+    if (!(await ensureQuoteOwnerVisible(pool, req.authUser, data.quote.owner_user_id as string))) {
+      res.status(404).json({ error: "Devis introuvable" }); return;
+    }
+    if (data.quote.status === "signed") { res.status(409).json({ error: "Devis signé" }); return; }
     await pool.query(`UPDATE quotes SET status='cancelled' WHERE id=$1 AND status NOT IN ('signed')`, [req.params.id]);
     res.json({ ok: true });
   }));
@@ -900,15 +956,68 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
     }
     const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() || req.ip || "";
 
-    // Create order from quote
+    // Resolve the client this signed quote belongs to. A quote linked only to a
+    // prospect means the deal is now won: convert the prospect into a real client
+    // so the order (and the quote) attach to an actual client account.
+    let clientId: string | null = (data.quote.client_id as string | null) ?? null;
+    let clientName = String(data.quote.client_name || "");
+    if (!clientId && data.quote.prospect_id) {
+      try {
+        const { rows: pRows } = await pool.query(
+          `SELECT * FROM prospects WHERE id=$1`,
+          [data.quote.prospect_id],
+        );
+        const prospect = pRows[0];
+        if (prospect) {
+          if (prospect.converted_client_id) {
+            clientId = String(prospect.converted_client_id);
+          } else {
+            const newClientId = newId("client");
+            await pool.query(
+              `INSERT INTO clients
+                 (id, name, type, status, segment, territory_id, owner_user_id,
+                  contact_name, phone, email, potential_score, financial_risk, notes)
+               VALUES ($1,$2,'client','active','B',$3,$4,$5,$6,$7,$8,'low',$9)`,
+              [
+                newClientId,
+                prospect.name,
+                prospect.territory_id,
+                prospect.owner_user_id,
+                prospect.contact_name ?? "",
+                prospect.phone ?? "",
+                prospect.email ?? "",
+                Math.max(0, Math.min(100, Number(prospect.score) || 0)),
+                prospect.notes ?? "",
+              ],
+            );
+            await pool.query(
+              `UPDATE prospects
+                 SET status='converted', converted_client_id=$2, converted_at=NOW()
+               WHERE id=$1`,
+              [prospect.id, newClientId],
+            );
+            await pool.query(
+              `INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, meta)
+               VALUES ($1,$2,'prospect.converted','prospect',$3,$4)`,
+              [newId("aud"), null, prospect.id, JSON.stringify({ clientId: newClientId, via: "quote_signature", quoteId: req.params.id })],
+            ).catch(() => undefined);
+            clientId = newClientId;
+          }
+        }
+      } catch (e) {
+        logError("quote.prospect_conversion_failed", { error: (e as Error).message });
+      }
+    }
+
+    // Create order from quote (now attached to the resolved client when available).
     const orderId = newId("ord");
     await pool.query(
       `INSERT INTO orders (id, client_id, client_name, owner_user_id, territory_id, date, amount, discount, status, approval_status, sync_status, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,0,'draft','pending','not_synced',$8)`,
       [
         orderId,
-        data.quote.client_id ?? null,
-        data.quote.client_name,
+        clientId,
+        clientName,
         data.quote.owner_user_id,
         data.quote.territory_id,
         new Date().toISOString().slice(0, 10),
@@ -925,7 +1034,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
          status='signed', signed_at=NOW(),
          signed_by_name=$2, signed_by_email=$3,
          signature_data_url=$4, signature_url=$5, signature_ip=$6,
-         order_id=$7
+         order_id=$7, client_id=COALESCE(client_id, $8)
        WHERE id=$1`,
       [
         req.params.id,
@@ -935,10 +1044,11 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
         blobUrl,
         ip,
         orderId,
+        clientId,
       ],
     );
 
-    logInfo("quote.signed", { quoteId: req.params.id, by: signedByName });
+    logInfo("quote.signed", { quoteId: req.params.id, by: signedByName, clientId });
     res.json({ ok: true, status: "signed" });
   }));
 
@@ -959,6 +1069,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   app.post(
     `${API}/quotes/:id/attachments`,
     requireAuth,
+    requirePermission("orders.write"),
     express.raw({ type: "*/*", limit: "25mb" }),
     asyncRoute(async (req: AuthedRequest, res) => {
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -1003,6 +1114,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   app.delete(
     `${API}/quotes/:quoteId/attachments/:attId`,
     requireAuth,
+    requirePermission("orders.write"),
     asyncRoute(async (req: AuthedRequest, res) => {
       const { rows } = await pool.query(
         `SELECT a.blob_url, q.owner_user_id FROM quote_attachments a
@@ -1032,6 +1144,7 @@ export function mountCrmFlowRoutes(app: Express, deps: CrmFlowDeps) {
   app.patch(
     `${API}/quotes/:quoteId/attachments/:attId`,
     requireAuth,
+    requirePermission("orders.write"),
     asyncRoute(async (req: AuthedRequest, res) => {
       const visibleToClient = req.body?.visibleToClient;
       if (typeof visibleToClient !== "boolean") {

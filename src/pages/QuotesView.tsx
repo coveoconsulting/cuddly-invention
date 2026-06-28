@@ -116,7 +116,7 @@ export function QuotesView() {
       ) : filtered.length === 0 ? (
         <EmptyState title="Aucun devis" description="Créez un devis depuis la fiche d'un client ou d'un prospect." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest">
+        <div className="overflow-x-auto rounded-2xl border border-outline-variant bg-surface-container-lowest">
           <table className="w-full text-sm">
             <thead className="bg-surface-container text-xs uppercase text-secondary">
               <tr>

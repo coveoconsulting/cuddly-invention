@@ -1,5 +1,5 @@
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
 import {
   Bell,
   Bot,
@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { getJson } from "../lib/api";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { Logo } from "./Logo";
 import { planHasFeature, type PlanFeature, type PermissionKey } from "../types";
@@ -99,6 +100,29 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { can, company, currentUser } = useWorkspace();
   const plan = company?.plan;
+  const [waUnread, setWaUnread] = useState(0);
+
+  const whatsappEnabled = planHasFeature(plan, "whatsapp") && can("clients.read");
+  useEffect(() => {
+    if (!whatsappEnabled) return;
+    let cancelled = false;
+    const fetchUnread = async () => {
+      try {
+        const data = await getJson<{ total: number }>("/api/v1/whatsapp/unread-count");
+        if (!cancelled) setWaUnread(Number(data?.total || 0));
+      } catch {
+        /* ignore */
+      }
+    };
+    void fetchUnread();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchUnread();
+    }, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [whatsappEnabled]);
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -156,6 +180,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
+                    {item.path === "/whatsapp" && waUnread > 0 ? (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary">
+                        {waUnread > 99 ? "99+" : waUnread}
+                      </span>
+                    ) : null}
                   </NavLink>
                 ))}
               </div>
@@ -163,6 +192,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </nav>
+
+      <div className="border-t border-outline-variant px-4 py-2 text-center text-[10px] font-semibold text-secondary">
+        coveoconsulting · v1.0.3
+      </div>
     </div>
   );
 }
@@ -176,39 +209,44 @@ export function Sidebar() {
 }
 
 export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+  // Pure CSS transitions (no JS animation library): the drawer is always mounted
+  // and slides via transform/opacity. This can never get "stuck open" the way an
+  // animation-completion-based unmount can on some mobile WebViews.
   return (
-    <AnimatePresence>
-      {open ? (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
-          <motion.button
-            type="button"
-            aria-label="Fermer le menu"
-            className="absolute inset-0 bg-black/45"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-          />
-          <motion.div
-            initial={{ x: "-100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
-            transition={{ type: "spring", stiffness: 320, damping: 32 }}
-            className="relative flex h-full w-[292px] flex-col bg-[#f0f4ef] text-on-surface shadow-[24px_0_60px_rgba(20,33,28,0.35)]"
-          >
-            <button
-              type="button"
-              aria-label="Fermer"
-              onClick={onClose}
-              className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant bg-white/80 text-secondary hover:bg-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <SidebarContent onNavigate={onClose} />
-          </motion.div>
-        </div>
-      ) : null}
-    </AnimatePresence>
+    <div
+      className={cn(
+        "fixed inset-0 z-50 lg:hidden",
+        open ? "" : "pointer-events-none",
+      )}
+      aria-hidden={!open}
+    >
+      <button
+        type="button"
+        aria-label="Fermer le menu"
+        tabIndex={open ? 0 : -1}
+        onClick={onClose}
+        className={cn(
+          "absolute inset-0 bg-black/45 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0",
+        )}
+      />
+      <div
+        className={cn(
+          "relative flex h-full w-[292px] flex-col bg-[#f0f4ef] text-on-surface shadow-[24px_0_60px_rgba(20,33,28,0.35)] transition-transform duration-200 ease-out will-change-transform",
+          open ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        <button
+          type="button"
+          aria-label="Fermer"
+          tabIndex={open ? 0 : -1}
+          onClick={onClose}
+          className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant bg-white/80 text-secondary hover:bg-white"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <SidebarContent onNavigate={onClose} />
+      </div>
+    </div>
   );
 }

@@ -383,15 +383,53 @@ export interface UserPreferences {
   autoSync: boolean;
 }
 
-export type ProspectStatus = "new" | "qualified" | "contacted" | "converted" | "lost";
+export type ProspectStatus =
+  | "new"
+  | "contacted"
+  | "qualified"
+  | "quoted"
+  | "negotiation"
+  | "converted"
+  | "lost";
 
-export interface Prospect {
+// Which sales force created/owns the lead.
+export type ProspectTeam = "call_center" | "field";
+
+// Structured channel the lead came in through.
+export type ProspectLeadSource = "societe" | "appel" | "rdv" | "mail" | "rs";
+
+// Estimated potential of a field-prospected outlet (terrain métier).
+export type ProspectPotential = "low" | "medium" | "high";
+
+// Single source of truth for the whitelists — reused by the server validation and
+// the intake form so the two never drift apart.
+export const PROSPECT_LEAD_SOURCES: ProspectLeadSource[] = ["societe", "appel", "rdv", "mail", "rs"];
+export const PROSPECT_POTENTIALS: ProspectPotential[] = ["low", "medium", "high"];
+
+// Lead sources offered for field prospecting.
+export const FIELD_LEAD_SOURCES: ProspectLeadSource[] = ["societe", "rdv", "rs"];
+
+/** Field-prospecting capture (this product is the terrain app). */
+export interface ProspectFieldIntake {
+  address: string;
+  zone: string;
+  establishmentType: string;
+  potential: ProspectPotential | null;
+  competitor: string;
+  nextVisitAt: string | null;
+}
+
+export interface Prospect extends ProspectFieldIntake {
   id: string;
   name: string;
   contactName: string;
   phone: string;
   email: string;
   source: string;
+  team: ProspectTeam;
+  leadSource: ProspectLeadSource;
+  need: string;
+  solutionFit: string;
   status: ProspectStatus;
   score: number;
   ownerUserId: string;
@@ -481,10 +519,27 @@ export interface WhatsAppContact {
   clientId: string | null;
   prospectId: string | null;
   linkedName: string | null;
+  assignedUserId: string | null;
+  assignedName: string | null;
   lastMessageAt: string | null;
+  lastInboundAt: string | null;
   unreadCount: number;
   lastBody: string;
   lastType: WhatsAppMessageType | null;
+}
+
+export interface WhatsAppAgent {
+  id: string;
+  name: string;
+  initials: string;
+}
+
+export interface WhatsAppTemplate {
+  name: string;
+  language: string;
+  category: string;
+  status: string;
+  body: string;
 }
 
 export interface WhatsAppMessage {

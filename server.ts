@@ -43,6 +43,7 @@ import type {
   VisitStatus,
   Prospect,
   ProspectStatus,
+  ProspectLeadSource,
   Activity,
   ActivityType,
   CampaignItem,
@@ -53,6 +54,11 @@ import type {
   SalesCallItem,
   SubscriptionPlan,
 } from "./src/types.js";
+import {
+  normalizeLeadSource,
+  buildFieldIntake,
+  applyFieldIntakePatch,
+} from "./src/lib/prospect-intake.js";
 
 dotenv.config();
 
@@ -432,8 +438,8 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
   },
   {
     key: "manager",
-    label: "Chef d'équipe",
-    description: "Gère les commerciaux de son équipe, valide les remises et pilote le portefeuille régional.",
+    label: "Chef de projet / d'équipe",
+    description: "Encadre les commerciaux de son équipe, valide les remises et commandes, et pilote le portefeuille régional.",
     permissions: [
       "dashboard.read",
       "clients.read", "clients.write",
@@ -471,7 +477,6 @@ const ROLE_DEFINITIONS: RoleDefinition[] = [
       "routes.read",
       "assistant.read",
       "settings.read",
-      "settings.write",
       "notifications.read",
       "notifications.write",
     ],
@@ -694,6 +699,44 @@ function numberOrZero(value: unknown) {
 
 type PgClient = import("pg").PoolClient;
 
+function resolvePgSsl(connectionString: string): boolean | { rejectUnauthorized: boolean } {
+  const override = process.env.PGSSL?.trim().toLowerCase();
+  if (override === "disable" || override === "false" || override === "0") {
+    return false;
+  }
+  if (override === "no-verify") {
+    return { rejectUnauthorized: false };
+  }
+  if (override === "verify" || override === "true" || override === "1") {
+    return { rejectUnauthorized: true };
+  }
+  let host = "";
+  try {
+    host = new URL(connectionString).hostname.toLowerCase();
+  } catch {
+    host = "";
+  }
+  if (!host || host === "localhost" || host === "127.0.0.1" || host === "::1") {
+    return false;
+  }
+  const managedHosts = [
+    ".neon.tech",
+    ".vercel-storage.com",
+    ".supabase.co",
+    ".supabase.com",
+    ".rds.amazonaws.com",
+    ".render.com",
+    ".railway.app",
+    ".heroku.com",
+    ".azure.com",
+    ".cockroachlabs.cloud",
+  ];
+  if (managedHosts.some((suffix) => host.endsWith(suffix))) {
+    return { rejectUnauthorized: false };
+  }
+  return { rejectUnauthorized: true };
+}
+
 class PostgresDatabase implements DataStore {
   readonly pool: Pool;
   private initPromise: Promise<void> | null = null;
@@ -704,7 +747,7 @@ class PostgresDatabase implements DataStore {
       max: Number(process.env.PG_POOL_MAX || "3"),
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 30_000,
-      ssl: { rejectUnauthorized: false },
+      ssl: resolvePgSsl(connectionString),
     });
     this.pool.on("error", (error) => {
       logError("db.pool_error", { error: serializeError(error) });
@@ -1078,6 +1121,17 @@ class PostgresDatabase implements DataStore {
         phone: row.phone ?? "",
         email: row.email ?? "",
         source: row.source ?? "",
+        team: row.team ?? "field",
+        leadSource: row.lead_source ?? "societe",
+        need: row.need ?? "",
+        solutionFit: row.solution_fit ?? "",
+        // Field intake
+        address: row.address ?? "",
+        zone: row.zone ?? "",
+        establishmentType: row.establishment_type ?? "",
+        potential: row.potential ?? null,
+        competitor: row.competitor ?? "",
+        nextVisitAt: toIsoOrNull(row.next_visit_at),
         status: row.status,
         score: row.score,
         ownerUserId: row.owner_user_id,
@@ -1572,6 +1626,16 @@ class PostgresDatabase implements DataStore {
         "phone",
         "email",
         "source",
+        "team",
+        "lead_source",
+        "need",
+        "solution_fit",
+        "address",
+        "zone",
+        "establishment_type",
+        "potential",
+        "competitor",
+        "next_visit_at",
         "status",
         "score",
         "owner_user_id",
@@ -1587,6 +1651,16 @@ class PostgresDatabase implements DataStore {
         row.phone ?? "",
         row.email ?? "",
         row.source ?? "",
+        row.team ?? "field",
+        row.leadSource ?? "societe",
+        row.need ?? "",
+        row.solutionFit ?? "",
+        row.address ?? "",
+        row.zone ?? "",
+        row.establishmentType ?? "",
+        row.potential ?? null,
+        row.competitor ?? "",
+        row.nextVisitAt ?? null,
         row.status,
         row.score ?? 50,
         row.ownerUserId,
@@ -4499,7 +4573,17 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
           { key: "contact", get: (row) => row.contactName },
           { key: "email", get: (row) => row.email },
           { key: "telephone", get: (row) => row.phone },
+          { key: "equipe", get: (row) => row.team },
+          { key: "canal", get: (row) => row.leadSource },
           { key: "source", get: (row) => row.source },
+          { key: "besoin", get: (row) => row.need },
+          // Terrain
+          { key: "adresse", get: (row) => row.address },
+          { key: "secteur", get: (row) => row.zone },
+          { key: "type_etablissement", get: (row) => row.establishmentType },
+          { key: "potentiel", get: (row) => row.potential ?? "" },
+          { key: "concurrence", get: (row) => row.competitor },
+          { key: "prochaine_visite", get: (row) => row.nextVisitAt ?? "" },
           { key: "statut", get: (row) => row.status },
           { key: "score", get: (row) => row.score },
           { key: "commercial", get: (row) => row.ownerName },
@@ -4523,9 +4607,11 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
       await store.mutate((db) => {
         const owner = resolveOwner(db, actor, req.body?.ownerUserId);
         const territory = resolveTerritory(db, actor, req.body?.territoryId);
-        const status = ["new", "qualified", "contacted", "lost"].includes(req.body?.status)
+        const status = ["new", "contacted", "qualified", "quoted", "negotiation", "lost"].includes(req.body?.status)
           ? (req.body.status as ProspectStatus)
           : "new";
+        const leadSource: ProspectLeadSource = normalizeLeadSource(req.body?.leadSource);
+        const intake = buildFieldIntake(req.body);
         const prospect: Prospect = {
           id: `prospect-${crypto.randomUUID()}`,
           name: String(req.body?.name || "").trim() || "Nouveau prospect",
@@ -4533,6 +4619,11 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
           phone: String(req.body?.phone || "").trim(),
           email: String(req.body?.email || "").trim(),
           source: String(req.body?.source || "").trim(),
+          team: "field",
+          leadSource,
+          ...intake,
+          need: String(req.body?.need || "").trim(),
+          solutionFit: String(req.body?.solutionFit || "").trim(),
           status,
           score: Math.max(0, Math.min(100, toNumber(req.body?.score, 50))),
           ownerUserId: owner.id,
@@ -4570,6 +4661,7 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
           return;
         }
         const current = db.prospects[index];
+        const intake = applyFieldIntakePatch(current, req.body);
         db.prospects[index] = {
           ...current,
           name: req.body?.name !== undefined ? String(req.body.name).trim() : current.name,
@@ -4577,7 +4669,13 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
           phone: req.body?.phone !== undefined ? String(req.body.phone).trim() : current.phone,
           email: req.body?.email !== undefined ? String(req.body.email).trim() : current.email,
           source: req.body?.source !== undefined ? String(req.body.source).trim() : current.source,
-          status: ["new", "qualified", "contacted", "converted", "lost"].includes(req.body?.status)
+          leadSource: req.body?.leadSource !== undefined
+            ? normalizeLeadSource(req.body.leadSource)
+            : current.leadSource,
+          ...intake,
+          need: req.body?.need !== undefined ? String(req.body.need).trim() : current.need,
+          solutionFit: req.body?.solutionFit !== undefined ? String(req.body.solutionFit).trim() : current.solutionFit,
+          status: ["new", "contacted", "qualified", "quoted", "negotiation", "converted", "lost"].includes(req.body?.status)
             ? (req.body.status as ProspectStatus)
             : current.status,
           score: req.body?.score !== undefined ? Math.max(0, Math.min(100, toNumber(req.body.score, current.score))) : current.score,
@@ -4616,12 +4714,12 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
         const newClient: Client = {
           id: `client-${crypto.randomUUID()}`,
           name: prospect.name,
-          type: "prospect",
+          type: "client",
           status: "active",
           segment: "B",
-          address: "",
+          address: prospect.address ?? "",
           city: "",
-          zone: "",
+          zone: prospect.zone ?? "",
           territoryId: prospect.territoryId,
           territoryLabel: prospect.territoryLabel,
           ownerUserId: prospect.ownerUserId,
@@ -5483,7 +5581,6 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
   app.get(
     `${API_PREFIX}/settings/profile`,
     requireAuth,
-    requirePermission("settings.read"),
     asyncRoute(async (req: AuthenticatedRequest, res) => {
       const db = await store.read();
       res.json(buildUserSummary(db, req.authUser!));
@@ -5493,7 +5590,6 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
   app.patch(
     `${API_PREFIX}/settings/profile`,
     requireAuth,
-    requirePermission("settings.write"),
     asyncRoute(async (req: AuthenticatedRequest, res) => {
       const actor = req.authUser!;
       let updated: UserSummary | null = null;
@@ -5720,7 +5816,6 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
   app.get(
     `${API_PREFIX}/settings/preferences`,
     requireAuth,
-    requirePermission("settings.read"),
     asyncRoute(async (req: AuthenticatedRequest, res) => {
       const db = await store.read();
       const preferences =
@@ -5732,7 +5827,6 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
   app.patch(
     `${API_PREFIX}/settings/preferences`,
     requireAuth,
-    requirePermission("settings.write"),
     asyncRoute(async (req: AuthenticatedRequest, res) => {
       const actor = req.authUser!;
       let updated: UserPreferences | null = null;
@@ -5832,10 +5926,131 @@ Alertes: ${dashboard.alerts.map((alert) => alert.title).join(" | ")}
     }),
   );
 
+  // ----- Saisie vocale → CRM (Groq, modèles ouverts: Whisper + Llama) -------
+  // Tout passe par Groq (free tier, modèles open-weight). Aucune écriture ici :
+  // ces endpoints retournent un transcript + des actions PROPOSÉES que l'UI fait
+  // confirmer à l'utilisateur avant d'appeler les endpoints d'écriture existants.
+  const GROQ_API_KEY = process.env.GROQ_API_KEY?.trim() || null;
+  const GROQ_LLM_MODEL = process.env.GROQ_LLM_MODEL || "llama-3.3-70b-versatile";
+  const GROQ_STT_MODEL = process.env.GROQ_STT_MODEL || "whisper-large-v3-turbo";
+  const GROQ_BASE = "https://api.groq.com/openai/v1";
+
+  // Audio → texte via Whisper hébergé sur Groq.
+  app.post(
+    `${API_PREFIX}/ai/transcribe`,
+    requireAuth,
+    requirePermission("assistant.read"),
+    assistantRateLimiter,
+    express.raw({ type: "*/*", limit: "25mb" }),
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      if (!GROQ_API_KEY) {
+        res.status(503).json({ error: "Transcription indisponible (GROQ_API_KEY manquante)" });
+        return;
+      }
+      const body = req.body as Buffer | undefined;
+      if (!body || !Buffer.isBuffer(body) || body.length === 0) {
+        res.status(400).json({ error: "Audio vide" });
+        return;
+      }
+      const contentType = String(req.headers["content-type"] || "audio/webm");
+      const ext = contentType.includes("mp4") ? "mp4" : contentType.includes("wav") ? "wav" : contentType.includes("mpeg") ? "mp3" : "webm";
+      try {
+        const form = new FormData();
+        form.append("file", new Blob([body], { type: contentType }), `audio.${ext}`);
+        form.append("model", GROQ_STT_MODEL);
+        form.append("language", "fr");
+        form.append("response_format", "json");
+        const r = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+          body: form,
+        });
+        if (!r.ok) {
+          const detail = await r.text().catch(() => "");
+          logError("ai.transcribe_failed", { status: r.status, detail: detail.slice(0, 500) });
+          res.status(502).json({ error: "Transcription échouée" });
+          return;
+        }
+        const data = (await r.json()) as { text?: string };
+        res.json({ text: (data.text || "").trim() });
+      } catch (error) {
+        logError("ai.transcribe_error", { error: serializeError(error) });
+        res.status(502).json({ error: "Transcription échouée" });
+      }
+    }),
+  );
+
+  // Texte (instruction du commercial) → actions CRM structurées et PROPOSÉES.
+  app.post(
+    `${API_PREFIX}/ai/voice-intake`,
+    requireAuth,
+    requirePermission("assistant.read"),
+    assistantRateLimiter,
+    asyncRoute(async (req: AuthenticatedRequest, res) => {
+      const text = String(req.body?.text || "").trim();
+      const entityName = String(req.body?.entityName || "").trim();
+      const currency = (await store.read()).company.currency || "MAD";
+      if (!text) {
+        res.status(400).json({ error: "Texte vide" });
+        return;
+      }
+      if (!GROQ_API_KEY) {
+        res.status(503).json({ error: "Assistant vocal indisponible (GROQ_API_KEY manquante)" });
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const system = `Tu es un assistant CRM pour une force de vente. À partir d'une note dictée par un commercial (en français), tu extrais des actions structurées. Réponds UNIQUEMENT en JSON valide, sans texte autour, avec EXACTEMENT ce schéma:
+{
+  "summary": "résumé d'une phrase en français",
+  "qualification": { "need": "besoin détecté ou ''", "solutionFit": "adéquation avec notre offre ou ''" },
+  "schedule": { "type": "call|meeting|task", "subject": "intitulé court", "dateTime": "ISO 8601 ou ''" } | null,
+  "opportunityAmount": nombre ou null,
+  "email": { "subject": "objet", "body": "corps du mail prêt à envoyer" } | null,
+  "createQuote": booléen
+}
+Règles: la date du jour est ${today}. Devise: ${currency}. Convertis les dates relatives ("avant vendredi", "demain") en ISO. Si une info est absente, mets '' ou null. Ne fabrique jamais d'information. ${entityName ? `Le prospect/client concerné est: "${entityName}".` : ""}`;
+      try {
+        const r = await fetch(`${GROQ_BASE}/chat/completions`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: GROQ_LLM_MODEL,
+            temperature: 0.2,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: text },
+            ],
+          }),
+        });
+        if (!r.ok) {
+          const detail = await r.text().catch(() => "");
+          logError("ai.voice_intake_failed", { status: r.status, detail: detail.slice(0, 500) });
+          res.status(502).json({ error: "Analyse échouée" });
+          return;
+        }
+        const data = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+        const content = data.choices?.[0]?.message?.content || "{}";
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(content);
+        } catch {
+          res.status(502).json({ error: "Réponse IA illisible" });
+          return;
+        }
+        res.json({ transcript: text, actions: parsed });
+      } catch (error) {
+        logError("ai.voice_intake_error", { error: serializeError(error) });
+        res.status(502).json({ error: "Analyse échouée" });
+      }
+    }),
+  );
+
   const { mountWhatsAppRoutes } = await import("./whatsapp.js");
   mountWhatsAppRoutes(app, {
     pool: store.pool,
     requireAuth,
+    requirePermission,
     asyncRoute,
     logInfo,
     logError,
@@ -5844,6 +6059,7 @@ Alertes: ${dashboard.alerts.map((alert) => alert.title).join(" | ")}
   mountCrmFlowRoutes(app, {
     pool: store.pool,
     requireAuth,
+    requirePermission,
     asyncRoute,
     logInfo,
     logError,

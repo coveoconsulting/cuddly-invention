@@ -5,7 +5,7 @@ import type { NotificationItem } from "../types";
 import { ApiError, asArray, getJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { useWorkspace } from "../context/WorkspaceContext";
-import { formatDateTime } from "../lib/labels";
+import { formatDateTime, notificationLevelLabel, notificationTone } from "../lib/labels";
 
 type Filter = "all" | "unread";
 
@@ -137,16 +137,8 @@ export function NotificationsView() {
                     {notification.title}
                   </p>
                   {!notification.read ? <Badge variant="success">Nouveau</Badge> : null}
-                  <Badge
-                    variant={
-                      notification.level === "critical"
-                        ? "error"
-                        : notification.level === "warning"
-                        ? "warning"
-                        : "neutral"
-                    }
-                  >
-                    {notification.level}
+                  <Badge variant={notificationTone(notification.level)}>
+                    {notificationLevelLabel[notification.level]}
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm text-secondary">{notification.body}</p>

@@ -262,6 +262,51 @@
   }
 }
 
+@layer base {
+  /* Touch ergonomics for the packaged mobile app (and any touch device) */
+  button,
+  a,
+  [role="button"],
+  label,
+  summary,
+  select {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* No rubber-band / pull-to-refresh inside the WebView */
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  /* Press feedback on touch devices (which have no :hover) */
+  @media (hover: none) {
+    button:not(:disabled):active,
+    a:active,
+    [role="button"]:active {
+      opacity: 0.7;
+      transition: opacity 60ms ease;
+    }
+  }
+
+  /* Safe-area utilities for notches / gesture bars (0 on web) */
+  .pt-safe {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+  .pb-safe {
+    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom));
+  }
+
+  /* Centered modal overlays: never let the dialog grow taller than the screen.
+     Caps the card height and scrolls its content internally (fixes mobile where
+     tall forms overflowed off-screen with no way to reach the header/buttons). */
+  .fixed.inset-0.items-center.justify-center > * {
+    max-height: calc(100dvh - 1.5rem);
+    overflow-y: auto;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

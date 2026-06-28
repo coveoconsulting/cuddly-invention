@@ -58,6 +58,35 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshSession = async () => {
+    // DEV-ONLY: ?devmock=1 renders the authenticated shell without a backend,
+    // for local UI debugging. Never active in a production build.
+    if (
+      import.meta.env.DEV &&
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).has("devmock")
+    ) {
+      setSession({
+        company: {
+          id: "dev", name: "coveoconsulting", vertical: "CRM", currency: "MAD",
+          timezone: "Africa/Casablanca", country: "Morocco", plan: "enterprise",
+          planSeats: 5, planStartedAt: new Date().toISOString(), planNotes: "",
+        },
+        user: {
+          id: "dev", name: "Commercial Coveo", initials: "CC", email: "commercial@coveoconsulting.com",
+          phone: "", role: "sales_rep", roleLabel: "Commercial", title: "Commercial terrain",
+          territoryIds: [], territoryLabels: [], active: true,
+        },
+        permissions: [
+          "dashboard.read", "clients.read", "clients.write", "visits.read", "visits.write",
+          "opportunities.read", "opportunities.write", "orders.read", "orders.write",
+          "products.read", "targets.read", "routes.read", "assistant.read",
+          "settings.read", "notifications.read",
+        ],
+        unreadNotifications: 0,
+      });
+      setIsBooting(false);
+      return;
+    }
     try {
       const payload = await getJson<unknown>("/api/v1/auth/session");
       setSession(normalizeSession(payload));

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleCheckBig, Download, PackagePlus, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleCheckBig, Download, PackagePlus, Pencil, Plus, ScanLine, Trash2 } from "lucide-react";
 import { buildCsv, downloadCsv } from "../lib/csv";
+import { scanBarcode } from "../lib/device";
 import { SkeletonGrid } from "../components/Skeleton";
 import type { Order, OrderLine, OrderStatus, Product } from "../types";
-import { asArray, getJson, patchJson, postJson, requestJson } from "../lib/api";
+import { apiUrl, asArray, getJson, patchJson, postJson, requestJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { useConfirm } from "../components/Dialog";
 import { useToast } from "../components/Toast";
@@ -109,6 +110,27 @@ export function OrdersView() {
         }
         return next;
       }),
+    );
+  };
+
+  // Scan a barcode and add the matching product as an order line (field-sales quick entry).
+  const scanAndAddLine = async () => {
+    const code = await scanBarcode();
+    if (!code) return;
+    const needle = code.trim().toLowerCase();
+    const product = products.find(
+      (p) => p.ref.toLowerCase() === needle || p.name.toLowerCase() === needle,
+    );
+    const line: OrderLineForm = product
+      ? { ...emptyLine(), productId: product.id, productName: product.name, unitPrice: String(product.price) }
+      : { ...emptyLine(), productName: code.trim() };
+    setLines((current) => {
+      const first = current[0];
+      const isEmptyFirst = current.length === 1 && !first.productId && !first.productName.trim();
+      return isEmptyFirst ? [line] : [...current, line];
+    });
+    toast[product ? "success" : "info"](
+      product ? `Ajouté : ${product.name}` : `Code ${code} — produit inconnu, ligne libre créée`,
     );
   };
 
@@ -366,7 +388,7 @@ export function OrdersView() {
                 </Button>
               ) : null}
               <a
-                href={`/api/v1/orders/${order.id}/pdf`}
+                href={apiUrl(`/api/v1/orders/${order.id}/pdf`)}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-outline-variant bg-white px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container"
@@ -406,10 +428,16 @@ export function OrdersView() {
                   <p className="text-sm font-bold text-on-surface">Articles</p>
                   <p className="text-xs text-secondary">Selectionnez un produit ou saisissez une ligne libre.</p>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => setLines((current) => [...current, emptyLine()])}>
-                  <PackagePlus className="mr-1 h-3.5 w-3.5" />
-                  Ajouter
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => void scanAndAddLine()}>
+                    <ScanLine className="mr-1 h-3.5 w-3.5" />
+                    Scanner
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setLines((current) => [...current, emptyLine()])}>
+                    <PackagePlus className="mr-1 h-3.5 w-3.5" />
+                    Ajouter
+                  </Button>
+                </div>
               </div>
               <div className="space-y-3">
                 {lines.map((line) => (

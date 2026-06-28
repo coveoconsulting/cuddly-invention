@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, FileText, Upload } from "lucide-react";
 import type { Client, DocumentItem } from "../types";
-import { ApiError, asArray, getJson, postJson } from "../lib/api";
+import { apiUrl, ApiError, asArray, getJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { formatDateTime } from "../lib/labels";
 
@@ -46,7 +46,7 @@ export function DocumentsView() {
     setUploading(true);
     try {
       if (file) {
-        const response = await fetch("/api/v1/documents/upload", {
+        const response = await fetch(apiUrl("/api/v1/documents/upload"), {
           method: "POST",
           credentials: "include",
           headers: {

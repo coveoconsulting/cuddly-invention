@@ -121,7 +121,7 @@ export function TeamView() {
           <p className="text-sm">Aucun membre visible.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest">
+        <div className="overflow-x-auto rounded-2xl border border-outline-variant bg-surface-container-lowest">
           <table className="w-full text-sm">
             <thead className="border-b border-outline-variant bg-surface">
               <tr className="text-left text-xs uppercase tracking-wider text-secondary">

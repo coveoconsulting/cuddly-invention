@@ -1,33 +1,52 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft, ArrowRightCircle, FilePlus, Mail, MessageSquare, Phone, Save,
+  ArrowLeft, ArrowRightCircle, CalendarPlus, FilePlus, Mail, MapPinned, MessageSquare, Phone, Save, Target,
 } from "lucide-react";
 import { ApiError, getJson, patchJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { CommentsThread } from "../components/CommentsThread";
+import { VoiceIntake } from "../components/VoiceIntake";
 import { useWorkspace } from "../context/WorkspaceContext";
-import type { ProspectDetailPayload, ProspectStatus } from "../types";
+import type { ProspectDetailPayload, ProspectLeadSource, ProspectStatus, ProspectTeam } from "../types";
+import {
+  formatDate,
+  prospectLeadSourceLabel,
+  prospectPotentialLabel,
+} from "../lib/labels";
+import { useToast } from "../components/Toast";
 import { QuoteStatusBadge } from "./ClientDetailView";
 
 const STATUS: Array<{ id: ProspectStatus; label: string }> = [
   { id: "new", label: "Nouveau" },
-  { id: "qualified", label: "Qualifié" },
   { id: "contacted", label: "Contacté" },
-  { id: "converted", label: "Converti" },
+  { id: "qualified", label: "Qualifié" },
+  { id: "quoted", label: "Devis envoyé" },
+  { id: "negotiation", label: "Négociation" },
+  { id: "converted", label: "Gagné · Client" },
   { id: "lost", label: "Perdu" },
 ];
+
+// Ordered tunnel stages (excludes the terminal "lost" branch) for the progress stepper.
+const FUNNEL: ProspectStatus[] = ["new", "contacted", "qualified", "quoted", "negotiation", "converted"];
 
 export function ProspectDetailView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { can } = useWorkspace();
+  const toast = useToast();
   const [data, setData] = useState<ProspectDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"info" | "comments" | "quotes" | "activities">("info");
-  const [form, setForm] = useState({ name: "", contactName: "", phone: "", email: "", source: "", notes: "", status: "new" as ProspectStatus, score: 50 });
+  const [form, setForm] = useState({
+    name: "", contactName: "", phone: "", email: "", source: "",
+    team: "field" as ProspectTeam, leadSource: "societe" as ProspectLeadSource,
+    need: "", solutionFit: "", notes: "", status: "new" as ProspectStatus, score: 50,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planAt, setPlanAt] = useState("");
+  const [planning, setPlanning] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -41,6 +60,10 @@ export function ProspectDetailView() {
         phone: payload.prospect.phone || "",
         email: payload.prospect.email || "",
         source: payload.prospect.source || "",
+        team: payload.prospect.team || "field",
+        leadSource: payload.prospect.leadSource || "societe",
+        need: payload.prospect.need || "",
+        solutionFit: payload.prospect.solutionFit || "",
         notes: payload.prospect.notes || "",
         status: payload.prospect.status,
         score: payload.prospect.score,
@@ -88,6 +111,34 @@ export function ProspectDetailView() {
     }
   };
 
+  // Schedule a call (call-center) or a field visit (terrain) into the shared agenda.
+  const schedule = async () => {
+    if (!id || !planAt) return;
+    const isField = form.team === "field";
+    setPlanning(true);
+    try {
+      const dueDate = new Date(planAt).toISOString();
+      await postJson(`/api/v1/activities`, {
+        type: isField ? "meeting" : "call",
+        prospectId: id,
+        subject: isField ? `Visite terrain — ${form.name}` : `Appel de qualification — ${form.name}`,
+        content: form.need ? `Besoin : ${form.need}` : "",
+        dueDate,
+      });
+      // Advance an untouched lead to "contacted" once an action is booked.
+      if (form.status === "new") {
+        await patchJson(`/api/v1/prospects/${id}`, { status: "contacted" });
+      }
+      setPlanAt("");
+      toast.success(isField ? "Visite planifiée" : "Appel planifié", { title: "Ajouté à l'agenda" });
+      await load();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Planification impossible");
+    } finally {
+      setPlanning(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-secondary">Chargement…</div>;
   if (!data) {
     return (
@@ -120,11 +171,16 @@ export function ProspectDetailView() {
               </Badge>
               <Badge variant="neutral">Score {p.score}</Badge>
             </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-semibold text-secondary">
+                Canal : {prospectLeadSourceLabel[p.leadSource] ?? p.leadSource}
+              </span>
+            </div>
             <div className="mt-2 flex flex-wrap gap-4 text-xs text-secondary">
               {p.contactName ? <span>{p.contactName}</span> : null}
               {p.phone ? <a className="inline-flex items-center gap-1 hover:text-on-surface" href={`tel:${p.phone}`}><Phone className="h-3 w-3" />{p.phone}</a> : null}
               {p.email ? <a className="inline-flex items-center gap-1 hover:text-on-surface" href={`mailto:${p.email}`}><Mail className="h-3 w-3" />{p.email}</a> : null}
-              {p.source ? <span>Source : {p.source}</span> : null}
+              {p.source ? <span>Détail : {p.source}</span> : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -141,6 +197,121 @@ export function ProspectDetailView() {
           </div>
         </div>
       </div>
+
+      {can("clients.write") && p.status !== "converted" && p.status !== "lost" ? (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-primary">Saisie vocale — remplir le CRM en parlant</p>
+          <VoiceIntake
+            entityName={p.name}
+            prospectId={p.id}
+            currency={data.quotes[0]?.currency}
+            onApplied={load}
+            onCreateQuote={createQuote}
+          />
+        </div>
+      ) : null}
+
+      {p.status !== "lost" ? (
+        <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {FUNNEL.map((stage, idx) => {
+              const currentIdx = FUNNEL.indexOf(p.status);
+              const done = currentIdx >= 0 && idx <= currentIdx;
+              return (
+                <div key={stage} className="flex items-center gap-1.5">
+                  <span
+                    className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                      done ? "bg-primary text-on-primary" : "bg-surface-container text-secondary"
+                    }`}
+                  >
+                    {STATUS.find((s) => s.id === stage)?.label}
+                  </span>
+                  {idx < FUNNEL.length - 1 ? <span className="text-secondary">→</span> : null}
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-secondary">
+            La conversion en client se déclenche automatiquement à la signature d'un devis. Le bouton « Convertir » reste disponible en secours.
+          </p>
+        </div>
+      ) : null}
+
+      {p.status !== "lost" && p.status !== "converted" ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-bold text-on-surface">Qualification du besoin</h3>
+            </div>
+            <p className="mt-1 text-[11px] text-secondary">Adéquation entre ce que recherche le prospect et notre offre.</p>
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold text-secondary">Besoin détecté</label>
+                <textarea
+                  rows={2}
+                  value={form.need}
+                  onChange={(e) => setForm({ ...form, need: e.target.value })}
+                  disabled={!can("clients.write")}
+                  placeholder="Ce que recherche le prospect"
+                  className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold text-secondary">Adéquation avec notre offre</label>
+                <textarea
+                  rows={2}
+                  value={form.solutionFit}
+                  onChange={(e) => setForm({ ...form, solutionFit: e.target.value })}
+                  disabled={!can("clients.write")}
+                  placeholder="Comment notre solution répond au besoin"
+                  className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </div>
+              {can("clients.write") ? (
+                <div className="flex justify-end">
+                  <Button size="sm" variant="outline" onClick={() => void save()} disabled={saving}>
+                    <Save className="mr-1 h-3.5 w-3.5" /> {saving ? "…" : "Enregistrer"}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
+            <div className="flex items-center gap-2">
+              {form.team === "field" ? <MapPinned className="h-4 w-4 text-primary" /> : <Phone className="h-4 w-4 text-primary" />}
+              <h3 className="text-sm font-bold text-on-surface">
+                {form.team === "field" ? "Planifier une visite terrain" : "Planifier un appel"}
+              </h3>
+            </div>
+            <p className="mt-1 text-[11px] text-secondary">
+              {form.team === "field"
+                ? "La visite est ajoutée à l'agenda du commercial terrain."
+                : "L'appel est ajouté à l'agenda du centre d'appel."}
+            </p>
+            {can("visits.write") ? (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="datetime-local"
+                  value={planAt}
+                  onChange={(e) => setPlanAt(e.target.value)}
+                  className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+                <Button size="sm" onClick={() => void schedule()} disabled={!planAt || planning} className="w-full justify-center">
+                  <CalendarPlus className="mr-1 h-3.5 w-3.5" />
+                  {planning ? "Planification…" : form.team === "field" ? "Planifier la visite" : "Planifier l'appel"}
+                </Button>
+                <Link to="/agenda" className="block text-center text-[11px] text-primary hover:underline">
+                  Voir l'agenda
+                </Link>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-secondary">Vous n'avez pas le droit de planifier.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-1 border-b border-outline-variant">
         {(["info", "comments", "quotes", "activities"] as const).map((t) => (
@@ -198,6 +369,17 @@ export function ProspectDetailView() {
               />
             </div>
           </div>
+          <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700">Relevé terrain</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+              {p.address ? <IntakeField label="Adresse" value={p.address} /> : null}
+              {p.zone ? <IntakeField label="Secteur" value={p.zone} /> : null}
+              {p.establishmentType ? <IntakeField label="Établissement" value={p.establishmentType} /> : null}
+              {p.potential ? <IntakeField label="Potentiel" value={prospectPotentialLabel[p.potential]} /> : null}
+              {p.competitor ? <IntakeField label="Concurrence" value={p.competitor} /> : null}
+              {p.nextVisitAt ? <IntakeField label="Prochaine visite" value={formatDate(p.nextVisitAt)} /> : null}
+            </dl>
+          </div>
           <div className="mt-3">
             <label className="mb-1 block text-[11px] font-semibold text-secondary">Notes internes</label>
             <textarea
@@ -224,7 +406,7 @@ export function ProspectDetailView() {
         data.quotes.length === 0 ? (
           <p className="text-sm text-secondary">Aucun devis émis pour ce prospect.</p>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-outline-variant">
+          <div className="overflow-x-auto rounded-2xl border border-outline-variant">
             <table className="w-full text-sm">
               <thead className="bg-surface-container text-xs uppercase text-secondary">
                 <tr><th className="px-3 py-2 text-left">Numéro</th><th className="px-3 py-2 text-left">Statut</th><th className="px-3 py-2 text-right">Total</th><th className="px-3 py-2 text-left">Signé</th></tr>
@@ -262,6 +444,15 @@ export function ProspectDetailView() {
           </div>
         )
       ) : null}
+    </div>
+  );
+}
+
+function IntakeField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-wide text-secondary">{label}</dt>
+      <dd className="font-semibold text-on-surface">{value}</dd>
     </div>
   );
 }

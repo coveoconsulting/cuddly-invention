@@ -1,10 +1,18 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { WorkspaceProvider, useWorkspace } from "./context/WorkspaceContext";
 import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
+import { PermissionGuard } from "./components/PermissionGuard";
 import { Logo } from "./components/Logo";
+import type { PermissionKey } from "./types";
+
+// Defence in depth: the sidebar already hides forbidden links, but a direct URL
+// must also be blocked with a clean "access denied" screen (not an API error).
+const guard = (permission: PermissionKey, element: ReactNode): ReactNode => (
+  <PermissionGuard permission={permission}>{element}</PermissionGuard>
+);
 
 const namedPage = <T extends Record<string, unknown>, K extends keyof T>(
   loader: () => Promise<T>,
@@ -87,39 +95,39 @@ function AppRoutes() {
         element={isAuthenticated ? <Layout /> : <Navigate to="/login" replace />}
       >
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardView />} />
-        <Route path="/agenda" element={<AgendaView />} />
-        <Route path="/notifications" element={<NotificationsView />} />
-        <Route path="/prospects" element={<ProspectsView />} />
-        <Route path="/prospects/:id" element={<ProspectDetailView />} />
-        <Route path="/clients" element={<ClientsView />} />
-        <Route path="/clients/:id" element={<ClientDetailView />} />
-        <Route path="/quotes" element={<QuotesView />} />
-        <Route path="/quotes/:id" element={<QuoteDetailView />} />
-        <Route path="/activities" element={<ActivitiesView />} />
-        <Route path="/visits" element={<VisitsView />} />
-        <Route path="/visits/:id" element={<VisitReportView />} />
+        <Route path="/dashboard" element={guard("dashboard.read", <DashboardView />)} />
+        <Route path="/agenda" element={guard("visits.read", <AgendaView />)} />
+        <Route path="/notifications" element={guard("notifications.read", <NotificationsView />)} />
+        <Route path="/prospects" element={guard("clients.read", <ProspectsView />)} />
+        <Route path="/prospects/:id" element={guard("clients.read", <ProspectDetailView />)} />
+        <Route path="/clients" element={guard("clients.read", <ClientsView />)} />
+        <Route path="/clients/:id" element={guard("clients.read", <ClientDetailView />)} />
+        <Route path="/quotes" element={guard("orders.read", <QuotesView />)} />
+        <Route path="/quotes/:id" element={guard("orders.read", <QuoteDetailView />)} />
+        <Route path="/activities" element={guard("visits.read", <ActivitiesView />)} />
+        <Route path="/visits" element={guard("visits.read", <VisitsView />)} />
+        <Route path="/visits/:id" element={guard("visits.read", <VisitReportView />)} />
         <Route path="/contracts" element={<ContractsView />} />
-        <Route path="/orders" element={<OrdersView />} />
-        <Route path="/products" element={<ProductsView />} />
+        <Route path="/orders" element={guard("orders.read", <OrdersView />)} />
+        <Route path="/products" element={guard("products.read", <ProductsView />)} />
         <Route path="/campaigns" element={<CampaignsView />} />
-        <Route path="/pipeline" element={<PipelineView />} />
-        <Route path="/targets" element={<TargetsView />} />
-        <Route path="/reports" element={<ReportsView />} />
-        <Route path="/team" element={<TeamView />} />
-        <Route path="/approvals" element={<ApprovalsView />} />
+        <Route path="/pipeline" element={guard("opportunities.read", <PipelineView />)} />
+        <Route path="/targets" element={guard("targets.read", <TargetsView />)} />
+        <Route path="/reports" element={guard("insights.read", <ReportsView />)} />
+        <Route path="/team" element={guard("insights.read", <TeamView />)} />
+        <Route path="/approvals" element={guard("approvals.write", <ApprovalsView />)} />
         <Route path="/insights" element={<Navigate to="/reports" replace />} />
-        <Route path="/routes" element={<RoutesView />} />
+        <Route path="/routes" element={guard("routes.read", <RoutesView />)} />
         <Route path="/calls" element={<CallsView />} />
         <Route path="/cases" element={<CasesView />} />
-        <Route path="/documents" element={<DocumentsView />} />
-        <Route path="/whatsapp" element={<WhatsAppView />} />
-        <Route path="/assistant" element={<AIAssistantView />} />
-        <Route path="/settings" element={<SettingsView />} />
-        <Route path="/billing" element={<BillingView />} />
-        <Route path="/roles" element={<RolesView />} />
-        <Route path="/audit" element={<AuditView />} />
-        <Route path="/integrations" element={<IntegrationsView />} />
+        <Route path="/documents" element={guard("clients.read", <DocumentsView />)} />
+        <Route path="/whatsapp" element={guard("clients.read", <WhatsAppView />)} />
+        <Route path="/assistant" element={guard("assistant.read", <AIAssistantView />)} />
+        <Route path="/settings" element={guard("settings.read", <SettingsView />)} />
+        <Route path="/billing" element={guard("settings.read", <BillingView />)} />
+        <Route path="/roles" element={guard("roles.read", <RolesView />)} />
+        <Route path="/audit" element={guard("audit.read", <AuditView />)} />
+        <Route path="/integrations" element={guard("integrations.read", <IntegrationsView />)} />
         <Route path="/faq" element={<FAQView />} />
       </Route>
 

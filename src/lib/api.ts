@@ -1,3 +1,30 @@
+// Production backend used by the packaged mobile app (WebView origin is localhost,
+// so relative /api paths can't reach the server). Overridable via VITE_API_BASE.
+const NATIVE_FALLBACK_BASE = "https://fct5.vercel.app";
+
+let cachedBase: string | null = null;
+
+function resolveApiBase(): string {
+  if (cachedBase !== null) return cachedBase;
+  const fromEnv = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/+$/, "");
+  if (fromEnv) {
+    cachedBase = fromEnv;
+  } else {
+    // Capacitor injects window.Capacitor in the native WebView.
+    const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    cachedBase = cap?.isNativePlatform?.() ? NATIVE_FALLBACK_BASE : "";
+  }
+  return cachedBase;
+}
+
+/** Resolve an API path against the configured base URL (absolute URLs pass through). */
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = resolveApiBase();
+  if (!base) return path;
+  return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
+}
+
 export class ApiError extends Error {
   status: number;
   payload: unknown;
@@ -19,7 +46,7 @@ async function parseResponse(response: Response) {
 }
 
 export async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     credentials: "include",
     ...init,
     headers: {

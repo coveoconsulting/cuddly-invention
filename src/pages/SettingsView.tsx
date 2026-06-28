@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BellRing, KeyRound, Save, Trash2, Upload, UserRound } from "lucide-react";
 import type { UserPreferences, UserSummary } from "../types";
-import { ApiError, getJson, patchJson, postJson, requestJson } from "../lib/api";
+import { apiUrl, ApiError, getJson, patchJson, postJson, requestJson } from "../lib/api";
 import { Button } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Dialog";
@@ -133,6 +133,8 @@ export function SettingsView() {
 }
 
 function CrmSettingsCard() {
+  const { can } = useWorkspace();
+  const canEdit = can("settings.write");
   const [settings, setSettings] = useState<{
     quoteNumberPrefix: string; quoteNumberCounter: number; quoteValidityDays: number;
     defaultTaxRate: number; defaultPaymentTerms: string; defaultQuoteTerms: string;
@@ -143,14 +145,17 @@ function CrmSettingsCard() {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!canEdit) { setLoading(false); return; }
     void (async () => {
       try {
         const s = await getJson<typeof settings>(`/api/v1/crm-settings`);
         setSettings(s);
       } finally { setLoading(false); }
     })();
-  }, []);
+  }, [canEdit]);
 
+  // Company-level quote/CRM settings are admin/manager territory, not self-service.
+  if (!canEdit) return null;
   if (loading) return null;
   if (!settings) return null;
 
@@ -245,7 +250,7 @@ function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdate
       if (file.size > 5 * 1024 * 1024) {
         throw new Error("Image trop lourde (max 5 Mo).");
       }
-      const res = await fetch(`/api/v1/settings/avatar`, {
+      const res = await fetch(apiUrl(`/api/v1/settings/avatar`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": file.type },

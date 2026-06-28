@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft, Copy, Download, Eye, EyeOff, FileUp, Paperclip, Plus, Save, Send, Trash2, X,
 } from "lucide-react";
-import { ApiError, getJson, patchJson, postJson, requestJson } from "../lib/api";
+import { apiUrl, ApiError, getJson, patchJson, postJson, requestJson } from "../lib/api";
 import { Button } from "../components/ui";
 import { CommentsThread } from "../components/CommentsThread";
 import { useToast } from "../components/Toast";
@@ -167,7 +167,7 @@ export function QuoteDetailView() {
           <div className="flex flex-wrap items-center gap-2">
             <QuoteStatusBadge status={quote.status} />
             <a
-              href={`/api/v1/quotes/${quote.id}/pdf`}
+              href={apiUrl(`/api/v1/quotes/${quote.id}/pdf`)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 rounded-full bg-surface-container px-3 py-1.5 text-xs font-semibold hover:bg-surface"
@@ -394,7 +394,7 @@ function AttachmentsSection({ quote, onChange, disabled }: { quote: Quote; onCha
     setError(null);
     setUploading(true);
     try {
-      const res = await fetch(`/api/v1/quotes/${quote.id}/attachments`, {
+      const res = await fetch(apiUrl(`/api/v1/quotes/${quote.id}/attachments`), {
         method: "POST",
         credentials: "include",
         headers: {

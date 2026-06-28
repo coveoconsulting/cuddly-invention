@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
   Check,
   CheckCheck,
+  ClipboardList,
   FileText,
   Image as ImageIcon,
+  LayoutTemplate,
+  Link2,
   MessageCircle,
   Paperclip,
   Phone,
@@ -11,17 +15,39 @@ import {
   Search,
   Send,
   Settings as SettingsIcon,
+  UserPlus,
   X,
 } from "lucide-react";
-import { asArray, getJson, patchJson, postJson } from "../lib/api";
+import { Link } from "react-router-dom";
+import { apiUrl, asArray, getJson, patchJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import type {
+  WhatsAppAgent,
   WhatsAppContact,
   WhatsAppMessage,
   WhatsAppSettings,
   WhatsAppStatus,
+  WhatsAppTemplate,
 } from "../types";
 import { cn } from "../lib/utils";
+
+type ContactFilter = "all" | "mine" | "unread" | "unlinked" | "unassigned";
+
+const FILTERS: Array<{ id: ContactFilter; label: string }> = [
+  { id: "all", label: "Toutes" },
+  { id: "mine", label: "À moi" },
+  { id: "unread", label: "Non lues" },
+  { id: "unlinked", label: "Non liées" },
+  { id: "unassigned", label: "Non attribuées" },
+];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isOutsideWindow(c: WhatsAppContact | null): boolean {
+  if (!c) return false;
+  if (!c.lastInboundAt) return true; // never received an inbound → must use a template
+  return Date.now() - new Date(c.lastInboundAt).getTime() > DAY_MS;
+}
 
 const API = "/api/v1/whatsapp";
 
@@ -80,13 +106,19 @@ export function WhatsAppView() {
   const [settings, setSettings] = useState<WhatsAppSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
+  const [filter, setFilter] = useState<ContactFilter>("all");
+  const [agents, setAgents] = useState<WhatsAppAgent[]>([]);
+  const [showLink, setShowLink] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [logging, setLogging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadContacts = useCallback(async () => {
     setLoadingContacts(true);
     try {
-      const data = await getJson<unknown>(`${API}/contacts`);
+      const qs = filter === "all" ? "" : `?filter=${filter}`;
+      const data = await getJson<unknown>(`${API}/contacts${qs}`);
       setContacts(asArray<WhatsAppContact>(data));
       setError(null);
     } catch (e) {
@@ -94,7 +126,7 @@ export function WhatsAppView() {
     } finally {
       setLoadingContacts(false);
     }
-  }, []);
+  }, [filter]);
 
   const loadMessages = useCallback(async (contactId: string) => {
     setLoadingMessages(true);
@@ -123,7 +155,7 @@ export function WhatsAppView() {
 
   // SSE — live messages + status updates
   useEffect(() => {
-    const es = new EventSource(`${API}/stream`, { withCredentials: true });
+    const es = new EventSource(apiUrl(`${API}/stream`), { withCredentials: true });
     es.addEventListener("message", (evt) => {
       try {
         const msg = JSON.parse((evt as MessageEvent).data) as WhatsAppMessage;
@@ -221,7 +253,7 @@ export function WhatsAppView() {
     if (!file || !selected || attaching) return;
     setAttaching(true);
     try {
-      const uploadResponse = await fetch(`/api/v1/uploads/blob?folder=whatsapp`, {
+      const uploadResponse = await fetch(apiUrl(`/api/v1/uploads/blob?folder=whatsapp`), {
         method: "POST",
         credentials: "include",
         headers: {
@@ -298,8 +330,70 @@ export function WhatsAppView() {
     }
   };
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        setAgents(asArray<WhatsAppAgent>(await getJson<unknown>(`${API}/agents`)));
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  const patchSelected = (patch: Partial<WhatsAppContact>) => {
+    setContacts((prev) => prev.map((c) => (c.id === selectedId ? { ...c, ...patch } : c)));
+  };
+
+  const assign = async (userId: string | null) => {
+    if (!selected) return;
+    try {
+      await postJson(`${API}/contacts/${selected.id}/assign`, { userId });
+      const agent = agents.find((a) => a.id === userId) ?? null;
+      patchSelected({ assignedUserId: userId, assignedName: agent?.name ?? null });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const logActivity = async () => {
+    if (!selected || logging) return;
+    setLogging(true);
+    try {
+      await postJson(`${API}/contacts/${selected.id}/log-activity`, {});
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLogging(false);
+    }
+  };
+
+  const afterLink = async () => {
+    setShowLink(false);
+    await loadContacts();
+  };
+
+  const sendTemplate = async (tpl: WhatsAppTemplate) => {
+    if (!selected) return;
+    setShowTemplates(false);
+    setSending(true);
+    try {
+      const msg = await postJson<WhatsAppMessage>(`${API}/contacts/${selected.id}/messages`, {
+        templateName: tpl.name,
+        templateLanguage: tpl.language,
+      });
+      setMessages((prev) => [...prev, msg]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const outsideWindow = isOutsideWindow(selected);
+
   return (
-    <div className="flex h-[calc(100vh-72px)] flex-col p-3 md:p-4">
+    <div className="flex h-[calc(100dvh-72px)] flex-col p-3 md:p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <p className="text-xs text-secondary">Messagerie centralisée</p>
@@ -322,8 +416,13 @@ export function WhatsAppView() {
       ) : null}
 
       <div className="flex flex-1 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest">
-        {/* contacts pane */}
-        <aside className="flex w-[320px] shrink-0 flex-col border-r border-outline-variant">
+        {/* contacts pane — full width on mobile, hidden once a chat is open */}
+        <aside
+          className={cn(
+            "w-full shrink-0 flex-col border-r border-outline-variant lg:flex lg:w-[320px]",
+            selectedId ? "hidden" : "flex",
+          )}
+        >
           <div className="border-b border-outline-variant p-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary" />
@@ -333,6 +432,22 @@ export function WhatsAppView() {
                 placeholder="Rechercher une conversation"
                 className="w-full rounded-full border border-outline-variant bg-surface px-9 py-2 text-sm outline-none focus:border-primary"
               />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                    filter === f.id
+                      ? "bg-primary text-on-primary"
+                      : "border border-outline-variant text-secondary hover:bg-surface-container",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -385,7 +500,12 @@ export function WhatsAppView() {
         </aside>
 
         {/* conversation pane */}
-        <section className="flex flex-1 flex-col bg-[#efeae2]">
+        <section
+          className={cn(
+            "flex-1 flex-col bg-[#efeae2] lg:flex",
+            selectedId ? "flex" : "hidden lg:flex",
+          )}
+        >
           {!selected ? (
             <div className="flex flex-1 items-center justify-center">
               <div className="text-center">
@@ -398,7 +518,15 @@ export function WhatsAppView() {
             </div>
           ) : (
             <>
-              <header className="flex items-center gap-3 border-b border-outline-variant bg-surface-container-lowest px-4 py-3">
+              <header className="flex flex-wrap items-center gap-3 border-b border-outline-variant bg-surface-container-lowest px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  aria-label="Retour aux conversations"
+                  className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-secondary hover:bg-surface-container lg:hidden"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-carbon">
                   {(selected.displayName || selected.phone).slice(0, 2).toUpperCase()}
                 </div>
@@ -411,13 +539,40 @@ export function WhatsAppView() {
                     {selected.linkedName ? <span className="ml-2">· {selected.linkedName}</span> : null}
                   </p>
                 </div>
+
+                {/* Assignment */}
+                <select
+                  value={selected.assignedUserId ?? ""}
+                  onChange={(e) => void assign(e.target.value || null)}
+                  title="Attribuer la conversation"
+                  className="max-w-[150px] rounded-lg border border-outline-variant bg-surface px-2 py-1.5 text-xs outline-none focus:border-primary"
+                >
+                  <option value="">Non attribuée</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+
+                {/* CRM link state */}
                 {selected.clientId ? (
-                  <Badge variant="success">Client lié</Badge>
+                  <Link to={`/clients/${selected.clientId}`} className="inline-flex items-center gap-1 rounded-full bg-success-container px-2.5 py-1 text-[11px] font-semibold text-success">
+                    <Link2 className="h-3 w-3" /> {selected.linkedName || "Client"}
+                  </Link>
                 ) : selected.prospectId ? (
-                  <Badge variant="default">Prospect</Badge>
+                  <Link to={`/prospects/${selected.prospectId}`} className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary px-2.5 py-1 text-[11px] font-semibold">
+                    <Link2 className="h-3 w-3" /> {selected.linkedName || "Prospect"}
+                  </Link>
                 ) : (
-                  <Badge variant="neutral">Non lié</Badge>
+                  <Button variant="outline" size="sm" onClick={() => setShowLink(true)}>
+                    <Link2 className="mr-1 h-3.5 w-3.5" /> Lier au CRM
+                  </Button>
                 )}
+
+                {(selected.clientId || selected.prospectId) ? (
+                  <Button variant="ghost" size="sm" onClick={() => void logActivity()} disabled={logging} title="Journaliser comme activité CRM">
+                    <ClipboardList className="mr-1 h-3.5 w-3.5" /> {logging ? "…" : "Journaliser"}
+                  </Button>
+                ) : null}
               </header>
 
               <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -496,6 +651,20 @@ export function WhatsAppView() {
               </div>
 
               <footer className="border-t border-outline-variant bg-surface-container-lowest px-3 py-2">
+                {outsideWindow ? (
+                  <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
+                    <span>
+                      Hors fenêtre de 24 h : Meta n'autorise qu'un <strong>template approuvé</strong>. Le texte libre échouera.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates(true)}
+                      className="shrink-0 rounded-full bg-amber-600 px-2.5 py-1 font-semibold text-white"
+                    >
+                      Choisir un template
+                    </button>
+                  </div>
+                ) : null}
                 <div className="mx-auto flex max-w-3xl items-end gap-2">
                   <input
                     ref={fileInputRef}
@@ -503,6 +672,14 @@ export function WhatsAppView() {
                     className="hidden"
                     onChange={(event) => void sendAttachment(event)}
                   />
+                  <button
+                    type="button"
+                    className="rounded-full p-2 text-secondary hover:bg-surface-container"
+                    onClick={() => setShowTemplates(true)}
+                    title="Envoyer un template"
+                  >
+                    <LayoutTemplate className="h-5 w-5" />
+                  </button>
                   <button
                     type="button"
                     className="rounded-full p-2 text-secondary hover:bg-surface-container"
@@ -596,6 +773,210 @@ export function WhatsAppView() {
           onSaved={(s) => setSettings(s)}
         />
       ) : null}
+
+      {/* Link to CRM dialog */}
+      {showLink && selected ? (
+        <LinkDialog
+          contactId={selected.id}
+          onClose={() => setShowLink(false)}
+          onLinked={() => void afterLink()}
+        />
+      ) : null}
+
+      {/* Templates dialog */}
+      {showTemplates ? (
+        <TemplatesDialog
+          onClose={() => setShowTemplates(false)}
+          onPick={(tpl) => void sendTemplate(tpl)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+type LinkSearchResult = { id: string; label: string; sub: string };
+
+function LinkDialog({
+  contactId,
+  onClose,
+  onLinked,
+}: {
+  contactId: string;
+  onClose: () => void;
+  onLinked: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [clients, setClients] = useState<LinkSearchResult[]>([]);
+  const [prospects, setProspects] = useState<LinkSearchResult[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setClients([]);
+      setProspects([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const data = await getJson<{ clients: LinkSearchResult[]; prospects: LinkSearchResult[] }>(
+            `/api/v1/search?q=${encodeURIComponent(q)}`,
+          );
+          setClients(asArray<LinkSearchResult>(data.clients));
+          setProspects(asArray<LinkSearchResult>(data.prospects));
+        } catch {
+          /* ignore */
+        }
+      })();
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [query]);
+
+  const link = async (body: { clientId?: string; prospectId?: string }) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson(`${API}/contacts/${contactId}/link`, body);
+      onLinked();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createProspect = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson(`${API}/contacts/${contactId}/create-prospect`, {});
+      onLinked();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl bg-surface-container-lowest p-5 shadow-xl">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-bold">Lier au CRM</h2>
+          <button onClick={onClose} className="text-secondary"><X className="h-5 w-5" /></button>
+        </div>
+        <Button size="sm" onClick={() => void createProspect()} disabled={busy} className="mb-3">
+          <UserPlus className="mr-1 h-4 w-4" /> Créer un prospect depuis cette conversation
+        </Button>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-secondary">
+          …ou rattacher à un contact existant
+        </p>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Rechercher un client ou prospect…"
+          className="mb-2 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+        />
+        {error ? <p className="mb-2 text-xs text-error">{error}</p> : null}
+        <div className="flex-1 space-y-3 overflow-y-auto">
+          {clients.length > 0 ? (
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase text-secondary">Clients</p>
+              {clients.map((c) => (
+                <button
+                  key={c.id}
+                  disabled={busy}
+                  onClick={() => void link({ clientId: c.id })}
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-surface-container"
+                >
+                  <span className="font-semibold">{c.label}</span>
+                  <span className="text-xs text-secondary">{c.sub}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {prospects.length > 0 ? (
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase text-secondary">Prospects</p>
+              {prospects.map((p) => (
+                <button
+                  key={p.id}
+                  disabled={busy}
+                  onClick={() => void link({ prospectId: p.id })}
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-surface-container"
+                >
+                  <span className="font-semibold">{p.label}</span>
+                  <span className="text-xs text-secondary">{p.sub}</span>
+                </button>
+              ))}
+            </div>
+          ) : query.trim().length >= 2 ? (
+            <p className="text-xs text-secondary">Aucun résultat.</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TemplatesDialog({
+  onClose,
+  onPick,
+}: {
+  onClose: () => void;
+  onPick: (tpl: WhatsAppTemplate) => void;
+}) {
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setTemplates(asArray<WhatsAppTemplate>(await getJson<unknown>(`${API}/templates`)));
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl bg-surface-container-lowest p-5 shadow-xl">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-bold">Templates approuvés</h2>
+          <button onClick={onClose} className="text-secondary"><X className="h-5 w-5" /></button>
+        </div>
+        {loading ? (
+          <p className="text-sm text-secondary">Chargement…</p>
+        ) : error ? (
+          <p className="text-xs text-error">{error}</p>
+        ) : templates.length === 0 ? (
+          <p className="text-sm text-secondary">
+            Aucun template approuvé (ou WhatsApp non configuré). Créez-les dans Meta Business Manager.
+          </p>
+        ) : (
+          <div className="flex-1 space-y-2 overflow-y-auto">
+            {templates.map((t) => (
+              <button
+                key={`${t.name}-${t.language}`}
+                onClick={() => onPick(t)}
+                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-left hover:bg-surface-container"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">{t.name}</span>
+                  <span className="text-[10px] uppercase text-secondary">{t.language} · {t.category}</span>
+                </div>
+                {t.body ? <p className="mt-1 line-clamp-2 text-xs text-secondary">{t.body}</p> : null}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

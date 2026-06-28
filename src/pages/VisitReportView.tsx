@@ -1,27 +1,13 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, MapPinned, Navigation, Save } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, MapPinned, Navigation, Save } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { GeoPoint, Visit } from "../types";
-import { getJson, patchJson, postJson } from "../lib/api";
+import type { Visit } from "../types";
+import { apiUrl, getJson, patchJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { formatDateTime, visitStatusLabel, visitStatusTone } from "../lib/labels";
+import { getCurrentPosition, takePhoto } from "../lib/device";
 
-async function captureLocation(): Promise<GeoPoint | null> {
-  if (!("geolocation" in navigator)) {
-    return null;
-  }
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 5000 },
-    );
-  });
-}
+const captureLocation = getCurrentPosition;
 
 export function VisitReportView() {
   const { id } = useParams();
@@ -31,6 +17,42 @@ export function VisitReportView() {
   const [nextAction, setNextAction] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  const handleAddPhoto = async () => {
+    setPhotoError(null);
+    const shot = await takePhoto();
+    if (!shot) return;
+    setPhotoBusy(true);
+    try {
+      // Upload the raw image to blob storage, then attach it as a document of the visit's client.
+      const uploadRes = await fetch(apiUrl(`/api/v1/uploads/blob?folder=visits`), {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": shot.blob.type || "image/jpeg", "x-filename": shot.filename },
+        body: shot.blob,
+      });
+      if (!uploadRes.ok) {
+        const reason = await uploadRes.json().catch(() => null);
+        throw new Error(reason?.error || "Upload impossible (stockage non configuré ?)");
+      }
+      const uploaded = (await uploadRes.json()) as { url: string; sizeBytes: number; contentType: string };
+      await postJson(`/api/v1/documents`, {
+        name: `Photo visite — ${visit?.clientName ?? ""} — ${shot.filename}`,
+        blobUrl: uploaded.url,
+        sizeBytes: uploaded.sizeBytes,
+        contentType: uploaded.contentType,
+        clientId: visit?.clientId ?? null,
+      });
+      setPhotos((prev) => [shot.dataUrl, ...prev]);
+    } catch (e) {
+      setPhotoError(e instanceof Error ? e.message : "Photo non enregistrée");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   const loadVisit = async () => {
     if (!id) {
@@ -165,7 +187,20 @@ export function VisitReportView() {
                 <Save className="w-4 h-4 mr-2" />
                 Sauvegarder le brouillon
               </Button>
+              <Button variant="outline" onClick={() => void handleAddPhoto()} disabled={photoBusy}>
+                <Camera className="w-4 h-4 mr-2" />
+                {photoBusy ? "Envoi de la photo…" : "Prendre une photo"}
+              </Button>
             </div>
+
+            {photoError ? <p className="text-xs text-error">{photoError}</p> : null}
+            {photos.length > 0 ? (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {photos.map((src, i) => (
+                  <img key={i} src={src} alt="Photo visite" className="h-16 w-16 rounded-lg border border-outline-variant object-cover" />
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-2xl border border-outline-variant bg-surface p-5 space-y-4">

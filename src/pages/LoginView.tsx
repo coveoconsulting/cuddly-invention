@@ -16,6 +16,9 @@ export function LoginView() {
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotStatus, setForgotStatus] = useState<"idle" | "sending" | "sent">("idle");
+  // Space chooser: this app is the field-sales product; the call center is a separate app.
+  const [chosen, setChosen] = useState(false);
+  const CALL_CENTER_URL = "https://cc.coveoconsulting.com";
 
   const handleForgot = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -47,9 +50,37 @@ export function LoginView() {
       <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-md flex-col items-center justify-center gap-6">
         <Logo className="h-24 w-full max-w-[420px]" />
 
+        {!chosen ? (
+          <div className="w-full overflow-hidden rounded-lg border border-outline-variant bg-white shadow-lg">
+            <div className="border-b border-outline-variant bg-surface-container-low px-6 py-4">
+              <h2 className="text-lg font-bold text-on-surface">Choisir un espace</h2>
+            </div>
+            <div className="space-y-3 p-6">
+              <button
+                type="button"
+                onClick={() => { window.location.href = CALL_CENTER_URL; }}
+                className="block w-full rounded-xl border border-outline-variant bg-surface px-5 py-4 text-left transition hover:border-primary hover:bg-primary/5"
+              >
+                <span className="block text-base font-bold text-on-surface">Centre d'appel</span>
+                <span className="mt-0.5 block text-xs text-secondary">Prospection téléphonique · cc.coveoconsulting.com</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChosen(true)}
+                className="block w-full rounded-xl border border-primary bg-primary/10 px-5 py-4 text-left transition hover:bg-primary/15"
+              >
+                <span className="block text-base font-bold text-primary">Terrain</span>
+                <span className="mt-0.5 block text-xs text-secondary">Force de vente terrain · cet espace</span>
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="w-full overflow-hidden rounded-lg border border-outline-variant bg-white shadow-lg">
-          <div className="border-b border-outline-variant bg-surface-container-low px-6 py-4">
-            <h2 className="text-lg font-bold text-on-surface">Connexion</h2>
+          <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container-low px-6 py-4">
+            <h2 className="text-lg font-bold text-on-surface">Connexion · Terrain</h2>
+            <button type="button" onClick={() => setChosen(false)} className="text-xs font-semibold text-primary hover:underline">
+              Changer d'espace
+            </button>
           </div>
 
           <div className="space-y-6 p-6">
@@ -102,6 +133,7 @@ export function LoginView() {
             </form>
           </div>
         </div>
+        )}
       </div>
 
       {showForgot ? (
