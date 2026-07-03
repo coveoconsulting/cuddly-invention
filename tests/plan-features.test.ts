@@ -23,9 +23,13 @@ test("enterprise-grade plans expose advanced platform features", () => {
   assert.equal(planHasFeature("sur_mesure", "automations"), true);
 });
 
-test("essential plan stays focused on core field-sales workflow", () => {
+test("essential plan covers core field-sales workflow plus quotes/whatsapp/AI/reports", () => {
   assert.equal(planHasFeature("essentiel", "contacts"), true);
   assert.equal(planHasFeature("essentiel", "orders"), true);
-  assert.equal(planHasFeature("essentiel", "assistant_ai"), false);
+  assert.equal(planHasFeature("essentiel", "quotes"), true);
+  assert.equal(planHasFeature("essentiel", "whatsapp"), true);
+  assert.equal(planHasFeature("essentiel", "assistant_ai"), true);
+  assert.equal(planHasFeature("essentiel", "advanced_reports"), true);
+  assert.equal(planHasFeature("essentiel", "automations"), false);
   assert.equal(planHasFeature(undefined, "contacts"), false);
 });

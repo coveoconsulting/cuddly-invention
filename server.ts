@@ -199,32 +199,6 @@ function isSubscriptionPlan(value: string): value is SubscriptionPlan {
   return SUBSCRIPTION_PLANS.includes(value as SubscriptionPlan);
 }
 
-function verifyStripeWebhookSignature(rawBody: Buffer, signatureHeader: string | undefined, secret: string) {
-  if (!signatureHeader) {
-    return false;
-  }
-  const parts = signatureHeader.split(",").reduce<Record<string, string[]>>((acc, entry) => {
-    const [key, value] = entry.split("=");
-    if (!key || !value) return acc;
-    acc[key] = [...(acc[key] || []), value];
-    return acc;
-  }, {});
-  const timestamp = parts.t?.[0];
-  const signatures = parts.v1 || [];
-  if (!timestamp || signatures.length === 0) {
-    return false;
-  }
-  const timestampMs = Number(timestamp) * 1000;
-  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
-    return false;
-  }
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(`${timestamp}.${rawBody.toString("utf8")}`)
-    .digest("hex");
-  return signatures.some((signature) => safeEqual(signature, expected));
-}
-
 async function sendEmail(to: string, subject: string, html: string, text: string) {
   if (!RESEND_API_KEY) {
     logInfo("email.skipped", { to, subject, reason: "RESEND_API_KEY missing" });
@@ -5756,89 +5730,6 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
         planStartedAt: refreshed.company.planStartedAt,
         planNotes: refreshed.company.planNotes,
       });
-    }),
-  );
-
-  app.post(
-    `${API_PREFIX}/billing/checkout`,
-    requireAuth,
-    asyncRoute(async (req: AuthenticatedRequest, res) => {
-      const requestedPlan = String(req.body?.plan || "professionnel");
-      if (!isSubscriptionPlan(requestedPlan) || requestedPlan === "sur_mesure") {
-        res.status(400).json({ error: "Plan invalide pour le checkout" });
-        return;
-      }
-      const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
-      const priceId = process.env.STRIPE_PRICE_ID?.trim();
-      if (!stripeKey || !priceId) {
-        res.status(503).json({ error: "Stripe non configure (STRIPE_SECRET_KEY / STRIPE_PRICE_ID)" });
-        return;
-      }
-      const baseUrl = resolvePublicBaseUrl(req);
-      const quantity = String(Math.max(1, Number(req.body?.quantity) || 1));
-      const body = new URLSearchParams({
-        mode: "subscription",
-        success_url: `${baseUrl}/billing?checkout=success`,
-        cancel_url: `${baseUrl}/billing?checkout=cancelled`,
-        "line_items[0][price]": priceId,
-        "line_items[0][quantity]": quantity,
-        client_reference_id: req.authUser!.id,
-        "metadata[plan]": requestedPlan,
-        "metadata[planSeats]": quantity,
-        "subscription_data[metadata][plan]": requestedPlan,
-        "subscription_data[metadata][planSeats]": quantity,
-      });
-      const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${stripeKey}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body,
-      });
-      const payload = await response.json().catch(() => ({})) as { url?: string; error?: { message?: string } };
-      if (!response.ok || !payload.url) {
-        res.status(response.status || 502).json({ error: payload.error?.message || "Checkout Stripe impossible" });
-        return;
-      }
-      res.json({ url: payload.url });
-    }),
-  );
-
-  app.post(
-    `${API_PREFIX}/billing/webhook`,
-    asyncRoute(async (req, res) => {
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
-      const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
-      if (!webhookSecret) {
-        res.status(503).json({ error: "Stripe webhook non configure (STRIPE_WEBHOOK_SECRET)" });
-        return;
-      }
-      if (!rawBody || !verifyStripeWebhookSignature(rawBody, req.headers["stripe-signature"] as string | undefined, webhookSecret)) {
-        res.status(400).json({ error: "Signature Stripe invalide" });
-        return;
-      }
-      const event = req.body as {
-        type?: string;
-        data?: { object?: { metadata?: Record<string, string>; client_reference_id?: string } };
-      };
-      if (event.type === "checkout.session.completed") {
-        const metadata = event.data?.object?.metadata || {};
-        const plan = String(metadata.plan || "");
-        if (isSubscriptionPlan(plan) && plan !== "sur_mesure") {
-          const planSeats = Math.max(1, Number(metadata.planSeats) || 1);
-          await store.mutate((db) => {
-            db.company = {
-              ...db.company,
-              plan,
-              planSeats,
-              planStartedAt: new Date().toISOString(),
-              planNotes: db.company.planNotes || "Stripe checkout confirme",
-            };
-          });
-        }
-      }
-      res.json({ received: true });
     }),
   );
 

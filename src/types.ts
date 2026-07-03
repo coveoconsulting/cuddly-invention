@@ -139,7 +139,7 @@ export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
 };
 
 export const PLAN_FEATURES: Record<SubscriptionPlan, PlanFeature[]> = {
-  essentiel: ["contacts", "pipeline", "visits", "orders", "click_to_call"],
+  essentiel: ["contacts", "pipeline", "visits", "orders", "click_to_call", "quotes", "whatsapp", "assistant_ai", "advanced_reports"],
   professionnel: ["contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call"],
   enterprise: [
     "contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call",

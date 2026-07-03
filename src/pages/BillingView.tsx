@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, CreditCard, Sparkles, Users } from "lucide-react";
-import { ApiError, getJson, patchJson, postJson } from "../lib/api";
+import { Check, Sparkles, Users } from "lucide-react";
+import { ApiError, getJson, patchJson } from "../lib/api";
 import { Button } from "../components/ui";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { useTranslation } from "../i18n";
@@ -59,7 +59,6 @@ export function BillingView() {
   const [billing, setBilling] = useState<Billing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [savingPlan, setSavingPlan] = useState<SubscriptionPlan | null>(null);
   const [seatsInput, setSeatsInput] = useState("");
   const [notesInput, setNotesInput] = useState("");
 
@@ -81,22 +80,6 @@ export function BillingView() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-
-  const startCheckout = async (plan: SubscriptionPlan) => {
-    if (!isAdmin) return;
-    setSavingPlan(plan);
-    try {
-      const checkout = await postJson<{ url: string }>(`/api/v1/billing/checkout`, {
-        plan,
-        quantity: Math.max(1, Number(seatsInput) || billing?.planSeats || 1),
-      });
-      window.location.assign(checkout.url);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Checkout Stripe impossible");
-    } finally {
-      setSavingPlan(null);
-    }
-  };
 
   const saveSeatsAndNotes = async () => {
     if (!isAdmin || !billing) return;
@@ -239,26 +222,17 @@ export function BillingView() {
                   ) : null}
                 </ul>
                 <div className="mt-4">
-                  {p === "sur_mesure" ? (
-                    <a
-                      href="mailto:contact@coveoconsulting.ma?subject=Devis%20sur%20mesure"
-                      className="block w-full rounded-full border border-outline-variant bg-white px-3 py-2 text-center text-xs font-semibold hover:bg-surface"
-                    >
-                      Contacter
-                    </a>
-                  ) : isCurrent ? (
+                  {isCurrent ? (
                     <button disabled className="w-full rounded-full bg-surface-container px-3 py-2 text-xs font-semibold text-secondary">
                       Plan actuel
                     </button>
                   ) : (
-                    <button
-                      onClick={() => void startCheckout(p)}
-                      disabled={!isAdmin || savingPlan !== null}
-                      className="inline-flex w-full items-center justify-center gap-1 rounded-full bg-ink px-3 py-2 text-xs font-semibold text-white hover:bg-[#1b4139] disabled:opacity-50"
+                    <a
+                      href={`mailto:contact@coveoconsulting.ma?subject=${encodeURIComponent(`Changement de plan — ${PLAN_LABELS[p]}`)}`}
+                      className="block w-full rounded-full border border-outline-variant bg-white px-3 py-2 text-center text-xs font-semibold hover:bg-surface"
                     >
-                      <CreditCard className="h-3.5 w-3.5" />
-                      {savingPlan === p ? "Ouverture..." : "Passer au paiement"}
-                    </button>
+                      Contacter
+                    </a>
                   )}
                 </div>
               </div>

@@ -40,7 +40,6 @@ const STAGE_COLORS: Record<PipelineStage, string> = {
 };
 
 function isSummary(value: unknown): value is Summary {
-  const { t } = useTranslation();
   return Boolean(value) && typeof value === "object" && "kpis" in value;
 }
 
@@ -51,7 +50,6 @@ type Forecast = {
 };
 
 function isForecast(value: unknown): value is Forecast {
-  const { t } = useTranslation();
   return Boolean(value) && typeof value === "object" && "monthly" in value && "totals" in value;
 }
 

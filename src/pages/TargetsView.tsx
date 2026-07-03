@@ -20,7 +20,6 @@ type TargetForm = {
 };
 
 function percentage(actual: number, goal: number) {
-  const { t } = useTranslation();
   if (!goal) {
     return 0;
   }
@@ -28,12 +27,10 @@ function percentage(actual: number, goal: number) {
 }
 
 function defaultPeriodLabel() {
-  const { t } = useTranslation();
   return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date());
 }
 
 function formFromTarget(target: TargetProgress): TargetForm {
-  const { t } = useTranslation();
   return {
     ownerUserId: target.ownerUserId,
     periodLabel: target.periodLabel,

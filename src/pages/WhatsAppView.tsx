@@ -46,7 +46,6 @@ const FILTERS: Array<{ id: ContactFilter; label: string }> = [
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isOutsideWindow(c: WhatsAppContact | null): boolean {
-  const { t } = useTranslation();
   if (!c) return false;
   if (!c.lastInboundAt) return true; // never received an inbound → must use a template
   return Date.now() - new Date(c.lastInboundAt).getTime() > DAY_MS;
@@ -55,7 +54,6 @@ function isOutsideWindow(c: WhatsAppContact | null): boolean {
 const API = "/api/v1/whatsapp";
 
 function formatTimestamp(iso: string | null) {
-  const { t } = useTranslation();
   if (!iso) return "";
   const d = new Date(iso);
   const now = new Date();
@@ -79,7 +77,6 @@ function StatusIcon({ status }: { status: WhatsAppStatus }) {
 }
 
 function lastMessagePreview(c: WhatsAppContact) {
-  const { t } = useTranslation();
   if (c.lastType === "image") return "📷 Photo";
   if (c.lastType === "document") return "📄 Document";
   if (c.lastType === "audio") return "🎤 Audio";
@@ -90,7 +87,6 @@ function lastMessagePreview(c: WhatsAppContact) {
 }
 
 function mediaTypeForFile(file: File): "image" | "document" | "audio" | "video" {
-  const { t } = useTranslation();
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("audio/")) return "audio";
   if (file.type.startsWith("video/")) return "video";

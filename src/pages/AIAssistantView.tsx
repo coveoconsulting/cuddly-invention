@@ -23,7 +23,6 @@ type Thread = {
 const STORAGE_KEY_PREFIX = "clerivo:ai-threads:";
 
 function loadThreads(userId: string): Thread[] {
-  const { t } = useTranslation();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PREFIX + userId);
     if (!raw) return [];
@@ -35,7 +34,6 @@ function loadThreads(userId: string): Thread[] {
 }
 
 function saveThreads(userId: string, threads: Thread[]) {
-  const { t } = useTranslation();
   try {
     localStorage.setItem(STORAGE_KEY_PREFIX + userId, JSON.stringify(threads));
   } catch {
@@ -44,7 +42,6 @@ function saveThreads(userId: string, threads: Thread[]) {
 }
 
 function newThread(welcomeText: string): Thread {
-  const { t } = useTranslation();
   const id = (globalThis.crypto?.randomUUID?.() ?? `t-${Date.now()}`);
   const now = new Date().toISOString();
   return {

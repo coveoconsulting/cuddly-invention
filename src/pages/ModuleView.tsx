@@ -59,7 +59,6 @@ const config = {
 }>;
 
 function tone(status: string): BadgeTone {
-  const { t } = useTranslation();
   if (["active", "running", "completed", "resolved"].includes(status)) return "success";
   if (["renewal_due", "pending", "scheduled", "planned"].includes(status)) return "warning";
   if (["expired", "cancelled", "missed"].includes(status)) return "error";
@@ -67,7 +66,6 @@ function tone(status: string): BadgeTone {
 }
 
 function itemTitle(kind: ModuleKind, item: ModuleItem) {
-  const { t } = useTranslation();
   if (kind === "contracts") return (item as ContractItem).number;
   if (kind === "cases") return (item as CaseItem).title;
   if (kind === "campaigns") return (item as CampaignItem).name;
@@ -75,7 +73,6 @@ function itemTitle(kind: ModuleKind, item: ModuleItem) {
 }
 
 function itemSubtitle(kind: ModuleKind, item: ModuleItem) {
-  const { t } = useTranslation();
   if (kind === "contracts") {
     const contract = item as ContractItem;
     return `${contract.clientName} · renouvellement ${contract.renewalDate || contract.endDate}`;
@@ -93,7 +90,6 @@ function itemSubtitle(kind: ModuleKind, item: ModuleItem) {
 }
 
 function metric(kind: ModuleKind, item: ModuleItem, currency: string) {
-  const { t } = useTranslation();
   if (kind === "contracts") return formatCurrency((item as ContractItem).amount, currency);
   if (kind === "campaigns") {
     const campaign = item as CampaignItem;

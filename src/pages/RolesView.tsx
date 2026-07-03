@@ -17,7 +17,6 @@ const emptyRolesResponse: RolesResponse = {
 };
 
 function normalizeRolesResponse(payload: unknown): RolesResponse {
-  const { t } = useTranslation();
   if (!payload || typeof payload !== "object") {
     return emptyRolesResponse;
   }
