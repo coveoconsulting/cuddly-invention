@@ -21,6 +21,7 @@ import {
 import { Link } from "react-router-dom";
 import { apiUrl, asArray, getJson, patchJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
+import { CallButton } from "../components/CallButton";
 import type {
   WhatsAppAgent,
   WhatsAppContact,
@@ -31,6 +32,7 @@ import type {
 } from "../types";
 import { cn } from "../lib/utils";
 
+import { useTranslation } from "../i18n";
 type ContactFilter = "all" | "mine" | "unread" | "unlinked" | "unassigned";
 
 const FILTERS: Array<{ id: ContactFilter; label: string }> = [
@@ -44,6 +46,7 @@ const FILTERS: Array<{ id: ContactFilter; label: string }> = [
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isOutsideWindow(c: WhatsAppContact | null): boolean {
+  const { t } = useTranslation();
   if (!c) return false;
   if (!c.lastInboundAt) return true; // never received an inbound → must use a template
   return Date.now() - new Date(c.lastInboundAt).getTime() > DAY_MS;
@@ -52,6 +55,7 @@ function isOutsideWindow(c: WhatsAppContact | null): boolean {
 const API = "/api/v1/whatsapp";
 
 function formatTimestamp(iso: string | null) {
+  const { t } = useTranslation();
   if (!iso) return "";
   const d = new Date(iso);
   const now = new Date();
@@ -66,6 +70,7 @@ function formatTimestamp(iso: string | null) {
 }
 
 function StatusIcon({ status }: { status: WhatsAppStatus }) {
+  const { t } = useTranslation();
   if (status === "failed") return <X className="h-3.5 w-3.5 text-red-500" />;
   if (status === "read") return <CheckCheck className="h-3.5 w-3.5 text-sky-400" />;
   if (status === "delivered") return <CheckCheck className="h-3.5 w-3.5 text-white/70" />;
@@ -74,6 +79,7 @@ function StatusIcon({ status }: { status: WhatsAppStatus }) {
 }
 
 function lastMessagePreview(c: WhatsAppContact) {
+  const { t } = useTranslation();
   if (c.lastType === "image") return "📷 Photo";
   if (c.lastType === "document") return "📄 Document";
   if (c.lastType === "audio") return "🎤 Audio";
@@ -84,6 +90,7 @@ function lastMessagePreview(c: WhatsAppContact) {
 }
 
 function mediaTypeForFile(file: File): "image" | "document" | "audio" | "video" {
+  const { t } = useTranslation();
   if (file.type.startsWith("image/")) return "image";
   if (file.type.startsWith("audio/")) return "audio";
   if (file.type.startsWith("video/")) return "video";
@@ -91,6 +98,7 @@ function mediaTypeForFile(file: File): "image" | "document" | "audio" | "video" 
 }
 
 export function WhatsAppView() {
+  const { t } = useTranslation();
   const [contacts, setContacts] = useState<WhatsAppContact[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
@@ -396,8 +404,8 @@ export function WhatsAppView() {
     <div className="flex h-[calc(100dvh-72px)] flex-col p-3 md:p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <p className="text-xs text-secondary">Messagerie centralisée</p>
-          <h1 className="text-2xl font-black text-on-surface">WhatsApp</h1>
+          <p className="text-xs text-secondary">{t("whatsApp.auto.messagerieCentralisee")}</p>
+          <h1 className="text-2xl font-black text-on-surface">{t("whatsApp.auto.whatsapp")}</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowNew(true)}>
@@ -429,7 +437,7 @@ export function WhatsAppView() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher une conversation"
+                placeholder={t("whatsApp.auto.rechercherUneConversation")}
                 className="w-full rounded-full border border-outline-variant bg-surface px-9 py-2 text-sm outline-none focus:border-primary"
               />
             </div>
@@ -452,7 +460,7 @@ export function WhatsAppView() {
           </div>
           <div className="flex-1 overflow-y-auto">
             {loadingContacts ? (
-              <div className="p-4 text-sm text-secondary">Chargement…</div>
+              <div className="p-4 text-sm text-secondary">{t("whatsApp.auto.chargement")}</div>
             ) : filtered.length === 0 ? (
               <div className="p-4 text-sm text-secondary">
                 Aucune conversation. Cliquez sur "Nouvelle conv." pour démarrer.
@@ -510,7 +518,7 @@ export function WhatsAppView() {
             <div className="flex flex-1 items-center justify-center">
               <div className="text-center">
                 <MessageCircle className="mx-auto mb-3 h-10 w-10 text-secondary" />
-                <p className="text-sm font-semibold text-on-surface">Sélectionnez une conversation</p>
+                <p className="text-sm font-semibold text-on-surface">{t("whatsApp.auto.selectionnezUneConversation")}</p>
                 <p className="mt-1 text-xs text-secondary">
                   Choisissez un contact à gauche ou démarrez une nouvelle discussion.
                 </p>
@@ -522,7 +530,7 @@ export function WhatsAppView() {
                 <button
                   type="button"
                   onClick={() => setSelectedId(null)}
-                  aria-label="Retour aux conversations"
+                  aria-label={t("whatsApp.auto.retourAuxConversations")}
                   className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-secondary hover:bg-surface-container lg:hidden"
                 >
                   <ArrowLeft className="h-5 w-5" />
@@ -544,10 +552,10 @@ export function WhatsAppView() {
                 <select
                   value={selected.assignedUserId ?? ""}
                   onChange={(e) => void assign(e.target.value || null)}
-                  title="Attribuer la conversation"
+                  title={t("whatsApp.auto.attribuerLaConversation")}
                   className="max-w-[150px] rounded-lg border border-outline-variant bg-surface px-2 py-1.5 text-xs outline-none focus:border-primary"
                 >
-                  <option value="">Non attribuée</option>
+                  <option value="">{t("whatsApp.auto.nonAttribuee")}</option>
                   {agents.map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
@@ -569,15 +577,22 @@ export function WhatsAppView() {
                 )}
 
                 {(selected.clientId || selected.prospectId) ? (
-                  <Button variant="ghost" size="sm" onClick={() => void logActivity()} disabled={logging} title="Journaliser comme activité CRM">
+                  <Button variant="ghost" size="sm" onClick={() => void logActivity()} disabled={logging} title={t("whatsApp.auto.journaliserCommeActiviteCrm")}>
                     <ClipboardList className="mr-1 h-3.5 w-3.5" /> {logging ? "…" : "Journaliser"}
                   </Button>
                 ) : null}
+
+                <CallButton
+                  phone={`+${selected.phone}`}
+                  name={selected.displayName || `+${selected.phone}`}
+                  clientId={selected.clientId}
+                  prospectId={selected.prospectId}
+                />
               </header>
 
               <div className="flex-1 overflow-y-auto px-4 py-4">
                 {loadingMessages ? (
-                  <div className="text-sm text-secondary">Chargement des messages…</div>
+                  <div className="text-sm text-secondary">{t("whatsApp.auto.chargementDesMessages")}</div>
                 ) : messages.length === 0 ? (
                   <div className="mt-10 text-center text-sm text-secondary">
                     Pas encore de message.
@@ -654,7 +669,7 @@ export function WhatsAppView() {
                 {outsideWindow ? (
                   <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
                     <span>
-                      Hors fenêtre de 24 h : Meta n'autorise qu'un <strong>template approuvé</strong>. Le texte libre échouera.
+                      Hors fenêtre de 24 h : Meta n'autorise qu'un <strong>{t("whatsApp.auto.templateApprouve")}</strong>. Le texte libre échouera.
                     </span>
                     <button
                       type="button"
@@ -676,7 +691,7 @@ export function WhatsAppView() {
                     type="button"
                     className="rounded-full p-2 text-secondary hover:bg-surface-container"
                     onClick={() => setShowTemplates(true)}
-                    title="Envoyer un template"
+                    title={t("whatsApp.auto.envoyerUnTemplate")}
                   >
                     <LayoutTemplate className="h-5 w-5" />
                   </button>
@@ -684,7 +699,7 @@ export function WhatsAppView() {
                     type="button"
                     className="rounded-full p-2 text-secondary hover:bg-surface-container"
                     onClick={() => fileInputRef.current?.click()}
-                    title="Joindre un fichier"
+                    title={t("whatsApp.auto.joindreUnFichier")}
                     disabled={attaching}
                   >
                     <Paperclip className="h-5 w-5" />
@@ -699,7 +714,7 @@ export function WhatsAppView() {
                       }
                     }}
                     rows={1}
-                    placeholder="Écrire un message…"
+                    placeholder={t("whatsApp.auto.ecrireUnMessage")}
                     className="max-h-32 min-h-[40px] flex-1 resize-none rounded-2xl border border-outline-variant bg-surface px-4 py-2 text-sm outline-none focus:border-primary"
                   />
                   <button
@@ -721,7 +736,7 @@ export function WhatsAppView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-surface-container-lowest p-5 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Nouvelle conversation</h2>
+              <h2 className="text-lg font-bold">{t("whatsApp.auto.nouvelleConversation")}</h2>
               <button onClick={() => setShowNew(false)} className="text-secondary">
                 <X className="h-5 w-5" />
               </button>
@@ -745,7 +760,7 @@ export function WhatsAppView() {
                 <input
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Nom affiché"
+                  placeholder={t("whatsApp.auto.nomAffiche")}
                   className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                 />
               </div>
@@ -805,6 +820,7 @@ function LinkDialog({
   onClose: () => void;
   onLinked: () => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [clients, setClients] = useState<LinkSearchResult[]>([]);
   const [prospects, setProspects] = useState<LinkSearchResult[]>([]);
@@ -864,7 +880,7 @@ function LinkDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl bg-surface-container-lowest p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Lier au CRM</h2>
+          <h2 className="text-lg font-bold">{t("whatsApp.auto.lierAuCrm")}</h2>
           <button onClick={onClose} className="text-secondary"><X className="h-5 w-5" /></button>
         </div>
         <Button size="sm" onClick={() => void createProspect()} disabled={busy} className="mb-3">
@@ -876,14 +892,14 @@ function LinkDialog({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher un client ou prospect…"
+          placeholder={t("whatsApp.auto.rechercherUnClientOu")}
           className="mb-2 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
         />
         {error ? <p className="mb-2 text-xs text-error">{error}</p> : null}
         <div className="flex-1 space-y-3 overflow-y-auto">
           {clients.length > 0 ? (
             <div>
-              <p className="mb-1 text-[10px] font-bold uppercase text-secondary">Clients</p>
+              <p className="mb-1 text-[10px] font-bold uppercase text-secondary">{t("whatsApp.auto.clients")}</p>
               {clients.map((c) => (
                 <button
                   key={c.id}
@@ -899,7 +915,7 @@ function LinkDialog({
           ) : null}
           {prospects.length > 0 ? (
             <div>
-              <p className="mb-1 text-[10px] font-bold uppercase text-secondary">Prospects</p>
+              <p className="mb-1 text-[10px] font-bold uppercase text-secondary">{t("whatsApp.auto.prospects")}</p>
               {prospects.map((p) => (
                 <button
                   key={p.id}
@@ -913,7 +929,7 @@ function LinkDialog({
               ))}
             </div>
           ) : query.trim().length >= 2 ? (
-            <p className="text-xs text-secondary">Aucun résultat.</p>
+            <p className="text-xs text-secondary">{t("whatsApp.auto.aucunResultat")}</p>
           ) : null}
         </div>
       </div>
@@ -928,6 +944,7 @@ function TemplatesDialog({
   onClose: () => void;
   onPick: (tpl: WhatsAppTemplate) => void;
 }) {
+  const { t } = useTranslation();
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -948,11 +965,11 @@ function TemplatesDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl bg-surface-container-lowest p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Templates approuvés</h2>
+          <h2 className="text-lg font-bold">{t("whatsApp.auto.templatesApprouves")}</h2>
           <button onClick={onClose} className="text-secondary"><X className="h-5 w-5" /></button>
         </div>
         {loading ? (
-          <p className="text-sm text-secondary">Chargement…</p>
+          <p className="text-sm text-secondary">{t("whatsApp.auto.chargement")}</p>
         ) : error ? (
           <p className="text-xs text-error">{error}</p>
         ) : templates.length === 0 ? (
@@ -990,6 +1007,7 @@ function SettingsDialog({
   onClose: () => void;
   onSaved: (s: WhatsAppSettings) => void;
 }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     phoneNumberId: "",
     businessAccountId: "",
@@ -1033,7 +1051,7 @@ function SettingsDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-2xl bg-surface-container-lowest p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Configuration WhatsApp Cloud API</h2>
+          <h2 className="text-lg font-bold">{t("whatsApp.auto.configurationWhatsappCloudApi")}</h2>
           <button onClick={onClose} className="text-secondary">
             <X className="h-5 w-5" />
           </button>

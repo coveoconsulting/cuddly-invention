@@ -9,6 +9,7 @@ import { EmptyState } from "../components/EmptyState";
 import { formatCurrency } from "../lib/labels";
 import { useWorkspace } from "../context/WorkspaceContext";
 
+import { useTranslation } from "../i18n";
 type TargetForm = {
   ownerUserId: string;
   periodLabel: string;
@@ -19,6 +20,7 @@ type TargetForm = {
 };
 
 function percentage(actual: number, goal: number) {
+  const { t } = useTranslation();
   if (!goal) {
     return 0;
   }
@@ -26,10 +28,12 @@ function percentage(actual: number, goal: number) {
 }
 
 function defaultPeriodLabel() {
+  const { t } = useTranslation();
   return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date());
 }
 
 function formFromTarget(target: TargetProgress): TargetForm {
+  const { t } = useTranslation();
   return {
     ownerUserId: target.ownerUserId,
     periodLabel: target.periodLabel,
@@ -41,6 +45,7 @@ function formFromTarget(target: TargetProgress): TargetForm {
 }
 
 export function TargetsView() {
+  const { t } = useTranslation();
   const { company, currentUser, can } = useWorkspace();
   const confirm = useConfirm();
   const toast = useToast();
@@ -162,8 +167,8 @@ export function TargetsView() {
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm text-secondary">Objectifs commerciaux</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Suivi des objectifs</h1>
+          <p className="text-sm text-secondary">{t("targets.auto.objectifsCommerciaux")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("targets.auto.suiviDesObjectifs")}</h1>
         </div>
         {canWriteTargets ? (
           <Button className="self-start gap-2" onClick={openCreate}>
@@ -185,9 +190,9 @@ export function TargetsView() {
         </div>
       ) : !myTarget ? (
         <EmptyState
-          title="Aucun objectif defini"
+          title={t("targets.auto.aucunObjectifDefini")}
           description="Ajoutez des objectifs de chiffre d'affaires, de visites, d'opportunites et de commandes pour suivre l'execution."
-          action={canWriteTargets ? <Button onClick={openCreate}>Creer le premier objectif</Button> : undefined}
+          action={canWriteTargets ? <Button onClick={openCreate}>{t("targets.auto.creerLePremierObjectif")}</Button> : undefined}
         />
       ) : (
         <>
@@ -227,7 +232,7 @@ export function TargetsView() {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Flag className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-bold text-on-surface">Cap a tenir</h2>
+                  <h2 className="text-sm font-bold text-on-surface">{t("targets.auto.capATenir")}</h2>
                 </div>
                 {canWriteTargets ? (
                   <Button variant="outline" size="sm" onClick={() => openEdit(myTarget)}>
@@ -273,12 +278,12 @@ export function TargetsView() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-outline-variant text-left text-secondary">
-                      <th className="py-2 pr-4 font-semibold">Profil</th>
-                      <th className="py-2 pr-4 font-semibold">CA</th>
-                      <th className="py-2 pr-4 font-semibold">Visites</th>
-                      <th className="py-2 pr-4 font-semibold">Opportunites</th>
-                      <th className="py-2 pr-4 font-semibold">Commandes</th>
-                      {canWriteTargets ? <th className="py-2 font-semibold">Action</th> : null}
+                      <th className="py-2 pr-4 font-semibold">{t("targets.auto.profil")}</th>
+                      <th className="py-2 pr-4 font-semibold">{t("targets.auto.ca")}</th>
+                      <th className="py-2 pr-4 font-semibold">{t("targets.auto.visites")}</th>
+                      <th className="py-2 pr-4 font-semibold">{t("targets.auto.opportunites")}</th>
+                      <th className="py-2 pr-4 font-semibold">{t("targets.auto.commandes")}</th>
+                      {canWriteTargets ? <th className="py-2 font-semibold">{t("targets.auto.action")}</th> : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -349,7 +354,7 @@ export function TargetsView() {
               </select>
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Periode ex: Juin 2026"
+                placeholder={t("targets.auto.periodeExJuin2026")}
                 value={form.periodLabel}
                 onChange={(event) => setForm({ ...form, periodLabel: event.target.value })}
                 required
@@ -358,7 +363,7 @@ export function TargetsView() {
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 type="number"
                 min="0"
-                placeholder="Objectif CA"
+                placeholder={t("targets.auto.objectifCa")}
                 value={form.revenueGoal}
                 onChange={(event) => setForm({ ...form, revenueGoal: event.target.value })}
               />
@@ -366,7 +371,7 @@ export function TargetsView() {
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 type="number"
                 min="0"
-                placeholder="Objectif visites"
+                placeholder={t("targets.auto.objectifVisites")}
                 value={form.visitsGoal}
                 onChange={(event) => setForm({ ...form, visitsGoal: event.target.value })}
               />
@@ -374,7 +379,7 @@ export function TargetsView() {
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 type="number"
                 min="0"
-                placeholder="Objectif opportunites"
+                placeholder={t("targets.auto.objectifOpportunites")}
                 value={form.opportunitiesGoal}
                 onChange={(event) => setForm({ ...form, opportunitiesGoal: event.target.value })}
               />
@@ -382,7 +387,7 @@ export function TargetsView() {
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 type="number"
                 min="0"
-                placeholder="Objectif commandes"
+                placeholder={t("targets.auto.objectifCommandes")}
                 value={form.ordersGoal}
                 onChange={(event) => setForm({ ...form, ordersGoal: event.target.value })}
               />
@@ -415,6 +420,7 @@ function TargetCard({
   progress: number;
   color: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
       <p className="text-xs font-bold uppercase tracking-wider text-secondary">{label}</p>

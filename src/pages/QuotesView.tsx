@@ -4,21 +4,24 @@ import { Download, FileText } from "lucide-react";
 import { asArray, getJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
+import { useTranslation } from "../i18n";
 import type { Quote, QuoteStatus } from "../types";
 import { QuoteStatusBadge } from "./ClientDetailView";
 import { buildCsv, downloadCsv } from "../lib/csv";
 
-const STATUSES: Array<{ id: "" | QuoteStatus; label: string }> = [
-  { id: "", label: "Tous" },
-  { id: "draft", label: "Brouillon" },
-  { id: "sent", label: "Envoyés" },
-  { id: "signed", label: "Signés" },
-  { id: "refused", label: "Refusés" },
-  { id: "expired", label: "Expirés" },
-  { id: "cancelled", label: "Annulés" },
+// Filter labels resolve to i18n keys quotes.filter.* at render.
+const STATUSES: Array<{ id: "" | QuoteStatus; labelKey: string }> = [
+  { id: "", labelKey: "quotes.filter.all" },
+  { id: "draft", labelKey: "quotes.filter.draft" },
+  { id: "sent", labelKey: "quotes.filter.sent" },
+  { id: "signed", labelKey: "quotes.filter.signed" },
+  { id: "refused", labelKey: "quotes.filter.refused" },
+  { id: "expired", labelKey: "quotes.filter.expired" },
+  { id: "cancelled", labelKey: "quotes.filter.cancelled" },
 ];
 
 export function QuotesView() {
+  const { t } = useTranslation();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"" | QuoteStatus>("");
@@ -53,24 +56,24 @@ export function QuotesView() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4 md:p-6">
       <div>
-        <p className="text-sm text-secondary">Cycle commercial</p>
-        <h1 className="text-3xl font-black text-on-surface">Devis</h1>
+        <p className="text-sm text-secondary">{t("quotes.eyebrow")}</p>
+        <h1 className="text-3xl font-black text-on-surface">{t("quotes.title")}</h1>
         <p className="mt-1 text-sm text-secondary">
-          Créez un devis depuis une fiche client ou prospect. Envoyez le lien de signature au client.
+          {t("quotes.subtitle")}
         </p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <Stat label="Devis envoyés (en cours)" value={`${totals.sent.toFixed(2)}`} />
-        <Stat label="Devis signés" value={`${totals.signed.toFixed(2)}`} />
-        <Stat label="Total devis" value={`${quotes.length}`} />
+        <Stat label={t("quotes.stat.sent")} value={`${totals.sent.toFixed(2)}`} />
+        <Stat label={t("quotes.stat.signed")} value={`${totals.signed.toFixed(2)}`} />
+        <Stat label={t("quotes.stat.total")} value={`${quotes.length}`} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher par numéro ou client"
+          placeholder={t("quotes.searchPh")}
           className="flex-1 min-w-[220px] rounded-full border border-outline-variant bg-surface px-4 py-2 text-sm outline-none focus:border-primary"
         />
         <Button
@@ -80,21 +83,21 @@ export function QuotesView() {
             downloadCsv(
               "devis",
               buildCsv(filtered, [
-                { label: "Numéro", value: (q) => q.number },
-                { label: "Client", value: (q) => q.clientName },
-                { label: "Statut", value: (q) => q.status },
-                { label: "Total", value: (q) => q.total },
-                { label: "Devise", value: (q) => q.currency },
-                { label: "Émis", value: (q) => q.issuedAt ?? "" },
-                { label: "Expire", value: (q) => q.expiresAt ?? "" },
-                { label: "Signé", value: (q) => q.signedAt ?? "" },
-                { label: "Commercial", value: (q) => q.ownerName },
+                { label: t("quotes.col.number"), value: (q) => q.number },
+                { label: t("quotes.col.client"), value: (q) => q.clientName },
+                { label: t("quotes.col.status"), value: (q) => q.status },
+                { label: t("quotes.col.total"), value: (q) => q.total },
+                { label: t("quotes.col.currency"), value: (q) => q.currency },
+                { label: t("quotes.col.issued"), value: (q) => q.issuedAt ?? "" },
+                { label: t("quotes.col.expires"), value: (q) => q.expiresAt ?? "" },
+                { label: t("quotes.col.signed"), value: (q) => q.signedAt ?? "" },
+                { label: t("quotes.col.owner"), value: (q) => q.ownerName },
               ]),
             )
           }
         >
           <Download className="h-4 w-4" />
-          Exporter CSV
+          {t("quotes.exportCsv")}
         </Button>
         <div className="flex flex-wrap gap-1">
           {STATUSES.map((s) => (
@@ -105,28 +108,28 @@ export function QuotesView() {
                 filter === s.id ? "bg-ink text-white" : "bg-surface text-secondary hover:bg-surface-container"
               }`}
             >
-              {s.label}
+              {t(s.labelKey)}
             </button>
           ))}
         </div>
       </div>
 
       {loading ? (
-        <p className="text-sm text-secondary">Chargement…</p>
+        <p className="text-sm text-secondary">{t("common.loading")}</p>
       ) : filtered.length === 0 ? (
-        <EmptyState title="Aucun devis" description="Créez un devis depuis la fiche d'un client ou d'un prospect." />
+        <EmptyState title={t("quotes.empty.title")} description={t("quotes.empty.desc")} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-outline-variant bg-surface-container-lowest">
           <table className="w-full text-sm">
             <thead className="bg-surface-container text-xs uppercase text-secondary">
               <tr>
-                <th className="px-3 py-2 text-left">Numéro</th>
-                <th className="px-3 py-2 text-left">Client</th>
-                <th className="px-3 py-2 text-left">Statut</th>
-                <th className="px-3 py-2 text-right">Total</th>
-                <th className="px-3 py-2 text-left">Émis</th>
-                <th className="px-3 py-2 text-left">Expire</th>
-                <th className="px-3 py-2 text-left">Commercial</th>
+                <th className="px-3 py-2 text-left">{t("quotes.col.number")}</th>
+                <th className="px-3 py-2 text-left">{t("quotes.col.client")}</th>
+                <th className="px-3 py-2 text-left">{t("quotes.col.status")}</th>
+                <th className="px-3 py-2 text-right">{t("quotes.col.total")}</th>
+                <th className="px-3 py-2 text-left">{t("quotes.col.issued")}</th>
+                <th className="px-3 py-2 text-left">{t("quotes.col.expires")}</th>
+                <th className="px-3 py-2 text-left">{t("quotes.col.owner")}</th>
               </tr>
             </thead>
             <tbody>

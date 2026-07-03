@@ -1,5 +1,6 @@
 import type {
   ApprovalStatus,
+  CallDisposition,
   NotificationLevel,
   OrderStatus,
   PipelineStage,
@@ -24,6 +25,16 @@ export const prospectLeadSourceLabel: Record<ProspectLeadSource, string> = {
   rdv: "Rendez-vous",
   mail: "Mail",
   rs: "Réseaux sociaux",
+};
+
+export const callDispositionLabel: Record<CallDisposition, string> = {
+  answered: "Joint · échange réalisé",
+  no_answer: "Ne répond pas",
+  voicemail: "Répondeur",
+  gatekeeper: "Barrage secrétaire",
+  not_interested: "Pas intéressé",
+  callback: "À rappeler",
+  appointment: "RDV obtenu",
 };
 
 export const prospectPotentialLabel: Record<ProspectPotential, string> = {

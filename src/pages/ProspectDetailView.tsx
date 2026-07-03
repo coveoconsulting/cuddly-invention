@@ -6,25 +6,24 @@ import {
 import { ApiError, getJson, patchJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { CommentsThread } from "../components/CommentsThread";
+import { CallButton } from "../components/CallButton";
 import { VoiceIntake } from "../components/VoiceIntake";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 import type { ProspectDetailPayload, ProspectLeadSource, ProspectStatus, ProspectTeam } from "../types";
-import {
-  formatDate,
-  prospectLeadSourceLabel,
-  prospectPotentialLabel,
-} from "../lib/labels";
+import { formatDate } from "../lib/labels";
 import { useToast } from "../components/Toast";
 import { QuoteStatusBadge } from "./ClientDetailView";
 
-const STATUS: Array<{ id: ProspectStatus; label: string }> = [
-  { id: "new", label: "Nouveau" },
-  { id: "contacted", label: "Contacté" },
-  { id: "qualified", label: "Qualifié" },
-  { id: "quoted", label: "Devis envoyé" },
-  { id: "negotiation", label: "Négociation" },
-  { id: "converted", label: "Gagné · Client" },
-  { id: "lost", label: "Perdu" },
+// Status labels resolve to i18n keys prospect.status.* at render.
+const STATUS: Array<{ id: ProspectStatus; labelKey: string }> = [
+  { id: "new", labelKey: "prospect.status.new" },
+  { id: "contacted", labelKey: "prospect.status.contacted" },
+  { id: "qualified", labelKey: "prospect.status.qualified" },
+  { id: "quoted", labelKey: "prospect.status.quoted" },
+  { id: "negotiation", labelKey: "prospect.status.negotiation" },
+  { id: "converted", labelKey: "prospect.status.converted" },
+  { id: "lost", labelKey: "prospect.status.lost" },
 ];
 
 // Ordered tunnel stages (excludes the terminal "lost" branch) for the progress stepper.
@@ -34,6 +33,7 @@ export function ProspectDetailView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { can } = useWorkspace();
+  const { t } = useTranslation();
   const toast = useToast();
   const [data, setData] = useState<ProspectDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,11 +70,11 @@ export function ProspectDetailView() {
       });
       setError(null);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Chargement impossible");
+      setError(e instanceof ApiError ? e.message : t("prospect.err.load"));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -85,7 +85,7 @@ export function ProspectDetailView() {
       await patchJson(`/api/v1/prospects/${id}`, form);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Enregistrement impossible");
+      setError(e instanceof ApiError ? e.message : t("prospect.err.save"));
     } finally {
       setSaving(false);
     }
@@ -97,7 +97,7 @@ export function ProspectDetailView() {
       const r = await postJson<{ client: { id: string } }>(`/api/v1/prospects/${id}/convert`);
       if (r?.client?.id) navigate(`/clients/${r.client.id}`);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Conversion impossible");
+      setError(e instanceof ApiError ? e.message : t("prospect.err.convert"));
     }
   };
 
@@ -107,7 +107,7 @@ export function ProspectDetailView() {
       const q = await postJson<{ id: string }>(`/api/v1/quotes`, { prospectId: id });
       navigate(`/quotes/${q.id}`);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Création devis impossible");
+      setError(e instanceof ApiError ? e.message : t("prospect.err.quote"));
     }
   };
 
@@ -130,21 +130,21 @@ export function ProspectDetailView() {
         await patchJson(`/api/v1/prospects/${id}`, { status: "contacted" });
       }
       setPlanAt("");
-      toast.success(isField ? "Visite planifiée" : "Appel planifié", { title: "Ajouté à l'agenda" });
+      toast.success(isField ? t("prospect.toast.visitPlanned") : t("prospect.toast.callPlanned"), { title: t("prospect.toast.addedToAgenda") });
       await load();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Planification impossible");
+      toast.error(e instanceof ApiError ? e.message : t("prospect.err.plan"));
     } finally {
       setPlanning(false);
     }
   };
 
-  if (loading) return <div className="p-6 text-secondary">Chargement…</div>;
+  if (loading) return <div className="p-6 text-secondary">{t("common.loading")}</div>;
   if (!data) {
     return (
       <div className="p-6">
-        <p className="text-error">{error || "Prospect introuvable"}</p>
-        <Link to="/prospects" className="mt-3 inline-block text-sm text-primary">← Retour</Link>
+        <p className="text-error">{error || t("prospect.notFound")}</p>
+        <Link to="/prospects" className="mt-3 inline-block text-sm text-primary">← {t("prospect.back")}</Link>
       </div>
     );
   }
@@ -154,7 +154,7 @@ export function ProspectDetailView() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
       <Link to="/prospects" className="inline-flex items-center gap-1 text-xs text-secondary hover:text-on-surface">
-        <ArrowLeft className="h-3.5 w-3.5" /> Tous les prospects
+        <ArrowLeft className="h-3.5 w-3.5" /> {t("prospect.backToAll")}
       </Link>
 
       {error ? (
@@ -167,31 +167,31 @@ export function ProspectDetailView() {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black text-on-surface">{p.name}</h1>
               <Badge variant={p.status === "converted" ? "success" : p.status === "lost" ? "error" : "default"}>
-                {STATUS.find((s) => s.id === p.status)?.label}
+                {t(STATUS.find((s) => s.id === p.status)?.labelKey ?? "")}
               </Badge>
-              <Badge variant="neutral">Score {p.score}</Badge>
+              <Badge variant="neutral">{t("prospect.score")} {p.score}</Badge>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-semibold text-secondary">
-                Canal : {prospectLeadSourceLabel[p.leadSource] ?? p.leadSource}
+                {t("prospect.channel")} : {t(`enum.leadSource.${p.leadSource}`)}
               </span>
             </div>
             <div className="mt-2 flex flex-wrap gap-4 text-xs text-secondary">
               {p.contactName ? <span>{p.contactName}</span> : null}
-              {p.phone ? <a className="inline-flex items-center gap-1 hover:text-on-surface" href={`tel:${p.phone}`}><Phone className="h-3 w-3" />{p.phone}</a> : null}
+              {p.phone ? <span className="inline-flex items-center gap-2"><span>{p.phone}</span><CallButton phone={p.phone} name={p.name} prospectId={p.id} onLogged={load} /></span> : null}
               {p.email ? <a className="inline-flex items-center gap-1 hover:text-on-surface" href={`mailto:${p.email}`}><Mail className="h-3 w-3" />{p.email}</a> : null}
-              {p.source ? <span>Détail : {p.source}</span> : null}
+              {p.source ? <span>{t("prospect.detail")} : {p.source}</span> : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {can("clients.write") && p.status !== "converted" ? (
               <Button variant="outline" onClick={() => void convert()}>
-                <ArrowRightCircle className="mr-1 h-4 w-4" /> Convertir en client
+                <ArrowRightCircle className="mr-1 h-4 w-4" /> {t("prospect.convert")}
               </Button>
             ) : null}
             {can("orders.write") ? (
               <Button onClick={() => void createQuote()}>
-                <FilePlus className="mr-1 h-4 w-4" /> Nouveau devis
+                <FilePlus className="mr-1 h-4 w-4" /> {t("prospect.newQuote")}
               </Button>
             ) : null}
           </div>
@@ -200,7 +200,7 @@ export function ProspectDetailView() {
 
       {can("clients.write") && p.status !== "converted" && p.status !== "lost" ? (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-primary">Saisie vocale — remplir le CRM en parlant</p>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-primary">{t("prospect.voiceTitle")}</p>
           <VoiceIntake
             entityName={p.name}
             prospectId={p.id}
@@ -224,7 +224,7 @@ export function ProspectDetailView() {
                       done ? "bg-primary text-on-primary" : "bg-surface-container text-secondary"
                     }`}
                   >
-                    {STATUS.find((s) => s.id === stage)?.label}
+                    {t(STATUS.find((s) => s.id === stage)?.labelKey ?? "")}
                   </span>
                   {idx < FUNNEL.length - 1 ? <span className="text-secondary">→</span> : null}
                 </div>
@@ -232,7 +232,7 @@ export function ProspectDetailView() {
             })}
           </div>
           <p className="mt-2 text-[11px] text-secondary">
-            La conversion en client se déclenche automatiquement à la signature d'un devis. Le bouton « Convertir » reste disponible en secours.
+            {t("prospect.funnelNote")}
           </p>
         </div>
       ) : null}
@@ -242,36 +242,36 @@ export function ProspectDetailView() {
           <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-bold text-on-surface">Qualification du besoin</h3>
+              <h3 className="text-sm font-bold text-on-surface">{t("prospect.qualif.title")}</h3>
             </div>
-            <p className="mt-1 text-[11px] text-secondary">Adéquation entre ce que recherche le prospect et notre offre.</p>
+            <p className="mt-1 text-[11px] text-secondary">{t("prospect.qualif.subtitle")}</p>
             <div className="mt-3 space-y-3">
               <div>
-                <label className="mb-1 block text-[11px] font-semibold text-secondary">Besoin détecté</label>
+                <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("prospect.qualif.need")}</label>
                 <textarea
                   rows={2}
                   value={form.need}
                   onChange={(e) => setForm({ ...form, need: e.target.value })}
                   disabled={!can("clients.write")}
-                  placeholder="Ce que recherche le prospect"
+                  placeholder={t("prospect.qualif.needPh")}
                   className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold text-secondary">Adéquation avec notre offre</label>
+                <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("prospect.qualif.fit")}</label>
                 <textarea
                   rows={2}
                   value={form.solutionFit}
                   onChange={(e) => setForm({ ...form, solutionFit: e.target.value })}
                   disabled={!can("clients.write")}
-                  placeholder="Comment notre solution répond au besoin"
+                  placeholder={t("prospect.qualif.fitPh")}
                   className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
                 />
               </div>
               {can("clients.write") ? (
                 <div className="flex justify-end">
                   <Button size="sm" variant="outline" onClick={() => void save()} disabled={saving}>
-                    <Save className="mr-1 h-3.5 w-3.5" /> {saving ? "…" : "Enregistrer"}
+                    <Save className="mr-1 h-3.5 w-3.5" /> {saving ? "…" : t("common.save")}
                   </Button>
                 </div>
               ) : null}
@@ -282,13 +282,11 @@ export function ProspectDetailView() {
             <div className="flex items-center gap-2">
               {form.team === "field" ? <MapPinned className="h-4 w-4 text-primary" /> : <Phone className="h-4 w-4 text-primary" />}
               <h3 className="text-sm font-bold text-on-surface">
-                {form.team === "field" ? "Planifier une visite terrain" : "Planifier un appel"}
+                {form.team === "field" ? t("prospect.plan.visitTitle") : t("prospect.plan.callTitle")}
               </h3>
             </div>
             <p className="mt-1 text-[11px] text-secondary">
-              {form.team === "field"
-                ? "La visite est ajoutée à l'agenda du commercial terrain."
-                : "L'appel est ajouté à l'agenda du centre d'appel."}
+              {form.team === "field" ? t("prospect.plan.visitHint") : t("prospect.plan.callHint")}
             </p>
             {can("visits.write") ? (
               <div className="mt-3 space-y-2">
@@ -300,29 +298,29 @@ export function ProspectDetailView() {
                 />
                 <Button size="sm" onClick={() => void schedule()} disabled={!planAt || planning} className="w-full justify-center">
                   <CalendarPlus className="mr-1 h-3.5 w-3.5" />
-                  {planning ? "Planification…" : form.team === "field" ? "Planifier la visite" : "Planifier l'appel"}
+                  {planning ? t("prospect.plan.planning") : form.team === "field" ? t("prospect.plan.visitBtn") : t("prospect.plan.callBtn")}
                 </Button>
                 <Link to="/agenda" className="block text-center text-[11px] text-primary hover:underline">
-                  Voir l'agenda
+                  {t("prospect.plan.seeAgenda")}
                 </Link>
               </div>
             ) : (
-              <p className="mt-3 text-xs text-secondary">Vous n'avez pas le droit de planifier.</p>
+              <p className="mt-3 text-xs text-secondary">{t("prospect.plan.noRight")}</p>
             )}
           </div>
         </div>
       ) : null}
 
       <div className="flex flex-wrap gap-1 border-b border-outline-variant">
-        {(["info", "comments", "quotes", "activities"] as const).map((t) => (
+        {(["info", "comments", "quotes", "activities"] as const).map((tt) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tt}
+            onClick={() => setTab(tt)}
             className={`px-3 py-2 text-sm font-semibold border-b-2 ${
-              tab === t ? "border-primary text-on-surface" : "border-transparent text-secondary"
+              tab === tt ? "border-primary text-on-surface" : "border-transparent text-secondary"
             }`}
           >
-            {t === "info" ? "Informations" : t === "comments" ? "Commentaires" : t === "quotes" ? `Devis (${data.quotes.length})` : `Activités (${data.activities.length})`}
+            {tt === "info" ? t("prospect.tab.info") : tt === "comments" ? t("prospect.tab.comments") : tt === "quotes" ? `${t("prospect.tab.quotes")} (${data.quotes.length})` : `${t("prospect.tab.activities")} (${data.activities.length})`}
           </button>
         ))}
       </div>
@@ -331,14 +329,14 @@ export function ProspectDetailView() {
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
           <div className="grid gap-3 md:grid-cols-2">
             {([
-              ["name", "Raison sociale"],
-              ["contactName", "Contact"],
-              ["phone", "Téléphone"],
-              ["email", "Email"],
-              ["source", "Source"],
+              ["name", "prospect.field.name"],
+              ["contactName", "prospect.field.contact"],
+              ["phone", "prospect.field.phone"],
+              ["email", "prospect.field.email"],
+              ["source", "prospect.field.source"],
             ] as Array<["name" | "contactName" | "phone" | "email" | "source", string]>).map(([k, l]) => (
               <div key={k}>
-                <label className="mb-1 block text-[11px] font-semibold text-secondary">{l}</label>
+                <label className="mb-1 block text-[11px] font-semibold text-secondary">{t(l)}</label>
                 <input
                   value={form[k]}
                   onChange={(e) => setForm({ ...form, [k]: e.target.value })}
@@ -348,18 +346,18 @@ export function ProspectDetailView() {
               </div>
             ))}
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-secondary">Statut</label>
+              <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("prospect.field.status")}</label>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as ProspectStatus })}
                 disabled={!can("clients.write")}
                 className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
               >
-                {STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {STATUS.map((s) => <option key={s.id} value={s.id}>{t(s.labelKey)}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-secondary">Score</label>
+              <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("prospect.field.score")}</label>
               <input
                 type="number" min={0} max={100}
                 value={form.score}
@@ -370,18 +368,18 @@ export function ProspectDetailView() {
             </div>
           </div>
           <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700">Relevé terrain</p>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700">{t("prospect.fieldReport")}</p>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-              {p.address ? <IntakeField label="Adresse" value={p.address} /> : null}
-              {p.zone ? <IntakeField label="Secteur" value={p.zone} /> : null}
-              {p.establishmentType ? <IntakeField label="Établissement" value={p.establishmentType} /> : null}
-              {p.potential ? <IntakeField label="Potentiel" value={prospectPotentialLabel[p.potential]} /> : null}
-              {p.competitor ? <IntakeField label="Concurrence" value={p.competitor} /> : null}
-              {p.nextVisitAt ? <IntakeField label="Prochaine visite" value={formatDate(p.nextVisitAt)} /> : null}
+              {p.address ? <IntakeField label={t("prospect.intake.address")} value={p.address} /> : null}
+              {p.zone ? <IntakeField label={t("prospect.intake.zone")} value={p.zone} /> : null}
+              {p.establishmentType ? <IntakeField label={t("prospect.intake.establishment")} value={p.establishmentType} /> : null}
+              {p.potential ? <IntakeField label={t("prospect.intake.potential")} value={t(`enum.potential.${p.potential}`)} /> : null}
+              {p.competitor ? <IntakeField label={t("prospect.intake.competitor")} value={p.competitor} /> : null}
+              {p.nextVisitAt ? <IntakeField label={t("prospect.intake.nextVisit")} value={formatDate(p.nextVisitAt)} /> : null}
             </dl>
           </div>
           <div className="mt-3">
-            <label className="mb-1 block text-[11px] font-semibold text-secondary">Notes internes</label>
+            <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("prospect.notes")}</label>
             <textarea
               rows={4}
               value={form.notes}
@@ -393,7 +391,7 @@ export function ProspectDetailView() {
           {can("clients.write") ? (
             <div className="mt-3 flex justify-end">
               <Button size="sm" onClick={() => void save()} disabled={saving}>
-                <Save className="mr-1 h-3.5 w-3.5" /> {saving ? "Enregistrement…" : "Enregistrer"}
+                <Save className="mr-1 h-3.5 w-3.5" /> {saving ? t("prospect.saving") : t("common.save")}
               </Button>
             </div>
           ) : null}
@@ -404,12 +402,12 @@ export function ProspectDetailView() {
 
       {tab === "quotes" ? (
         data.quotes.length === 0 ? (
-          <p className="text-sm text-secondary">Aucun devis émis pour ce prospect.</p>
+          <p className="text-sm text-secondary">{t("prospect.noQuotes")}</p>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-outline-variant">
             <table className="w-full text-sm">
               <thead className="bg-surface-container text-xs uppercase text-secondary">
-                <tr><th className="px-3 py-2 text-left">Numéro</th><th className="px-3 py-2 text-left">Statut</th><th className="px-3 py-2 text-right">Total</th><th className="px-3 py-2 text-left">Signé</th></tr>
+                <tr><th className="px-3 py-2 text-left">{t("prospect.quoteCol.number")}</th><th className="px-3 py-2 text-left">{t("prospect.quoteCol.status")}</th><th className="px-3 py-2 text-right">{t("prospect.quoteCol.total")}</th><th className="px-3 py-2 text-left">{t("prospect.quoteCol.signed")}</th></tr>
               </thead>
               <tbody>
                 {data.quotes.map((q) => (
@@ -428,7 +426,7 @@ export function ProspectDetailView() {
 
       {tab === "activities" ? (
         data.activities.length === 0 ? (
-          <p className="text-sm text-secondary">Aucune activité enregistrée.</p>
+          <p className="text-sm text-secondary">{t("prospect.noActivities")}</p>
         ) : (
           <div className="space-y-2">
             {data.activities.map((a) => (

@@ -4,13 +4,15 @@ import { CalendarPlus2, Download, Mail, MapPin, Phone, Plus, Search, ShieldAlert
 import type { Client } from "../types";
 import { ApiError, asArray, getJson, postJson, requestJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
+import { CallButton } from "../components/CallButton";
 import { EmptyState } from "../components/EmptyState";
 import { SkeletonGrid } from "../components/Skeleton";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Dialog";
-import { formatDate, riskLabel } from "../lib/labels";
+import { formatDate } from "../lib/labels";
 import { toLocalIsoDate } from "../lib/dateDefaults";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 import { buildCsv, downloadCsv } from "../lib/csv";
 
 type ClientForm = {
@@ -52,6 +54,7 @@ function createVisitFormDefaults() {
 
 export function ClientsView() {
   const { can } = useWorkspace();
+  const { t } = useTranslation();
   const toast = useToast();
   const confirm = useConfirm();
   const [clients, setClients] = useState<Client[]>([]);
@@ -69,9 +72,9 @@ export function ClientsView() {
   const removeClient = async (client: Client) => {
     if (busyDelete) return;
     const decision = await confirm({
-      title: `Supprimer ${client.name} ?`,
-      description: "Le compte sera retiré de la base. Préférez la désactivation si vous voulez conserver l'historique.",
-      confirmLabel: "Supprimer",
+      title: t("clients.deleteConfirmTitle", { name: client.name }),
+      description: t("clients.deleteConfirmDesc"),
+      confirmLabel: t("clients.delete"),
       tone: "danger",
     });
     if (!decision.confirmed) return;
@@ -79,9 +82,9 @@ export function ClientsView() {
     setClients((current) => current.filter((entry) => entry.id !== client.id));
     try {
       await requestJson(`/api/v1/clients/${client.id}`, { method: "DELETE" });
-      toast.success(`${client.name} supprimé`);
+      toast.success(t("clients.deleted", { name: client.name }));
     } catch (reason) {
-      toast.error(reason instanceof ApiError ? reason.message : "Suppression impossible");
+      toast.error(reason instanceof ApiError ? reason.message : t("clients.err.delete"));
       await loadClients();
     } finally {
       setBusyDelete(null);
@@ -123,10 +126,10 @@ export function ClientsView() {
       });
       setForm(emptyClientForm);
       setShowCreate(false);
-      toast.success("Compte créé", { title: form.name });
+      toast.success(t("clients.toast.created"), { title: form.name });
       await loadClients();
     } catch (reason) {
-      toast.error(reason instanceof ApiError ? reason.message : "Création impossible");
+      toast.error(reason instanceof ApiError ? reason.message : t("clients.err.create"));
     } finally {
       setSavingClient(false);
     }
@@ -149,11 +152,11 @@ export function ClientsView() {
         startTime: visitForm.startTime,
         endTime: visitForm.endTime,
       });
-      toast.success("Visite planifiée", { title: showVisitFor.name });
+      toast.success(t("clients.toast.visitPlanned"), { title: showVisitFor.name });
       setShowVisitFor(null);
       setVisitForm(createVisitFormDefaults());
     } catch (reason) {
-      toast.error(reason instanceof ApiError ? reason.message : "Création impossible");
+      toast.error(reason instanceof ApiError ? reason.message : t("clients.err.create"));
     } finally {
       setSavingVisit(false);
     }
@@ -163,8 +166,8 @@ export function ClientsView() {
     <div className="mx-auto max-w-[1440px] space-y-6 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm text-secondary">Base clients et prospects</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Comptes terrain</h1>
+          <p className="text-sm text-secondary">{t("clients.eyebrow")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("clients.title")}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -174,31 +177,31 @@ export function ClientsView() {
               downloadCsv(
                 "comptes",
                 buildCsv(filteredClients, [
-                  { label: "Nom", value: (c) => c.name },
-                  { label: "Type", value: (c) => c.type },
-                  { label: "Segment", value: (c) => c.segment },
-                  { label: "Statut", value: (c) => c.status },
-                  { label: "Ville", value: (c) => c.city },
-                  { label: "Zone", value: (c) => c.zone },
-                  { label: "Territoire", value: (c) => c.territoryLabel },
-                  { label: "Propriétaire", value: (c) => c.ownerName },
-                  { label: "Contact", value: (c) => c.contactName },
-                  { label: "Téléphone", value: (c) => c.phone },
-                  { label: "Email", value: (c) => c.email },
-                  { label: "Potentiel", value: (c) => c.potentialScore },
-                  { label: "Risque", value: (c) => c.financialRisk },
-                  { label: "Dernière visite", value: (c) => c.lastVisit ?? "" },
+                  { label: t("clients.csv.name"), value: (c) => c.name },
+                  { label: t("clients.csv.type"), value: (c) => c.type },
+                  { label: t("clients.csv.segment"), value: (c) => c.segment },
+                  { label: t("clients.csv.status"), value: (c) => c.status },
+                  { label: t("clients.csv.city"), value: (c) => c.city },
+                  { label: t("clients.csv.zone"), value: (c) => c.zone },
+                  { label: t("clients.csv.territory"), value: (c) => c.territoryLabel },
+                  { label: t("clients.csv.owner"), value: (c) => c.ownerName },
+                  { label: t("clients.csv.contact"), value: (c) => c.contactName },
+                  { label: t("clients.csv.phone"), value: (c) => c.phone },
+                  { label: t("clients.csv.email"), value: (c) => c.email },
+                  { label: t("clients.csv.potential"), value: (c) => c.potentialScore },
+                  { label: t("clients.csv.risk"), value: (c) => c.financialRisk },
+                  { label: t("clients.csv.lastVisit"), value: (c) => c.lastVisit ?? "" },
                 ]),
               )
             }
           >
             <Download className="h-4 w-4" />
-            Exporter CSV
+            {t("clients.exportCsv")}
           </Button>
           {can("clients.write") ? (
             <Button className="self-start gap-2" onClick={() => setShowCreate(true)}>
               <Plus className="h-4 w-4" />
-              Nouveau compte
+              {t("clients.new")}
             </Button>
           ) : null}
         </div>
@@ -212,7 +215,7 @@ export function ClientsView() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="w-full rounded-xl border border-outline-variant bg-surface px-10 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            placeholder="Rechercher un client, un contact ou une ville"
+            placeholder={t("clients.searchPh")}
           />
         </div>
         <select
@@ -220,9 +223,9 @@ export function ClientsView() {
           onChange={(event) => setTypeFilter(event.target.value as "all" | "client" | "prospect")}
           className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
         >
-          <option value="all">Tous les comptes</option>
-          <option value="client">Clients</option>
-          <option value="prospect">Prospects</option>
+          <option value="all">{t("clients.filter.all")}</option>
+          <option value="client">{t("clients.filter.clients")}</option>
+          <option value="prospect">{t("clients.filter.prospects")}</option>
         </select>
       </div>
 
@@ -230,13 +233,13 @@ export function ClientsView() {
         <SkeletonGrid count={6} />
       ) : filteredClients.length === 0 ? (
         <EmptyState
-          title="Aucun compte disponible"
-          description="Commencez par créer un compte pour alimenter le portefeuille, les visites et le pipeline."
+          title={t("clients.empty.title")}
+          description={t("clients.empty.desc")}
           action={
             can("clients.write") ? (
               <Button className="gap-2" onClick={() => setShowCreate(true)}>
                 <Plus className="h-4 w-4" />
-                Nouveau compte
+                {t("clients.new")}
               </Button>
             ) : undefined
           }
@@ -255,11 +258,11 @@ export function ClientsView() {
                       {client.name}
                     </Link>
                     <Badge variant={client.type === "client" ? "success" : "default"}>
-                      {client.type === "client" ? "Client" : "Prospect"}
+                      {t(`enum.clientType.${client.type}`)}
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs text-secondary">
-                    Segment {client.segment} | {client.territoryLabel}
+                    {t("clients.card.segTerritory", { seg: client.segment, territory: client.territoryLabel })}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
@@ -273,7 +276,7 @@ export function ClientsView() {
                       type="button"
                       onClick={() => void removeClient(client)}
                       disabled={busyDelete === client.id}
-                      title="Supprimer"
+                      title={t("clients.delete")}
                       className="flex h-9 w-9 items-center justify-center rounded-xl border border-outline-variant bg-white text-secondary transition-colors hover:border-error/30 hover:bg-error-container hover:text-error disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -294,6 +297,9 @@ export function ClientsView() {
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 shrink-0 text-primary" />
                   <span>{client.phone}</span>
+                  {client.phone ? (
+                    <CallButton phone={client.phone} name={client.name} clientId={client.id} onLogged={loadClients} />
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 shrink-0 text-primary" />
@@ -303,19 +309,19 @@ export function ClientsView() {
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="rounded-xl border border-outline-variant bg-surface p-3">
-                  <p className="text-secondary">Potentiel</p>
+                  <p className="text-secondary">{t("clients.card.potential")}</p>
                   <p className="mt-1 text-lg font-black text-on-surface">{client.potentialScore}/100</p>
                 </div>
                 <div className="rounded-xl border border-outline-variant bg-surface p-3">
-                  <p className="text-secondary">Risque</p>
-                  <p className="mt-1 text-lg font-black text-on-surface">{riskLabel[client.financialRisk]}</p>
+                  <p className="text-secondary">{t("clients.card.risk")}</p>
+                  <p className="mt-1 text-lg font-black text-on-surface">{t(`enum.risk.${client.financialRisk}`)}</p>
                 </div>
               </div>
 
               <div className="flex items-center justify-between border-t border-outline-variant pt-2 text-xs text-secondary">
                 <div>
-                  <p>Dernière visite: {formatDate(client.lastVisit)}</p>
-                  <p>Prochaine visite: {formatDate(client.nextVisit)}</p>
+                  <p>{t("clients.card.lastVisit", { date: formatDate(client.lastVisit) })}</p>
+                  <p>{t("clients.card.nextVisit", { date: formatDate(client.nextVisit) })}</p>
                 </div>
                 {can("visits.write") ? (
                   <Button
@@ -325,7 +331,7 @@ export function ClientsView() {
                     onClick={() => setShowVisitFor(client)}
                   >
                     <CalendarPlus2 className="h-3.5 w-3.5" />
-                    Planifier
+                    {t("clients.card.plan")}
                   </Button>
                 ) : null}
               </div>
@@ -341,20 +347,20 @@ export function ClientsView() {
             className="w-full max-w-xl space-y-4 rounded-3xl border border-outline-variant bg-surface-container-lowest p-6 shadow-xl"
           >
             <div>
-              <p className="text-sm font-bold text-on-surface">Creation d'un compte</p>
-              <p className="mt-1 text-xs text-secondary">Ce compte sera enregistré immédiatement.</p>
+              <p className="text-sm font-bold text-on-surface">{t("clients.form.title")}</p>
+              <p className="mt-1 text-xs text-secondary">{t("clients.form.subtitle")}</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Nom du compte"
+                placeholder={t("clients.form.namePh")}
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
                 required
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Contact principal"
+                placeholder={t("clients.form.contactPh")}
                 value={form.contactName}
                 onChange={(event) => setForm({ ...form, contactName: event.target.value })}
                 required
@@ -364,49 +370,49 @@ export function ClientsView() {
                 value={form.type}
                 onChange={(event) => setForm({ ...form, type: event.target.value as "client" | "prospect" })}
               >
-                <option value="client">Client</option>
-                <option value="prospect">Prospect</option>
+                <option value="client">{t("enum.clientType.client")}</option>
+                <option value="prospect">{t("enum.clientType.prospect")}</option>
               </select>
               <select
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 value={form.segment}
                 onChange={(event) => setForm({ ...form, segment: event.target.value as "A" | "B" | "C" })}
               >
-                <option value="A">Segment A</option>
-                <option value="B">Segment B</option>
-                <option value="C">Segment C</option>
+                <option value="A">{t("clients.form.segmentOpt", { s: "A" })}</option>
+                <option value="B">{t("clients.form.segmentOpt", { s: "B" })}</option>
+                <option value="C">{t("clients.form.segmentOpt", { s: "C" })}</option>
               </select>
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm md:col-span-2"
-                placeholder="Adresse"
+                placeholder={t("clients.form.addressPh")}
                 value={form.address}
                 onChange={(event) => setForm({ ...form, address: event.target.value })}
                 required
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Ville"
+                placeholder={t("clients.form.cityPh")}
                 value={form.city}
                 onChange={(event) => setForm({ ...form, city: event.target.value })}
                 required
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Zone commerciale"
+                placeholder={t("clients.form.zonePh")}
                 value={form.zone}
                 onChange={(event) => setForm({ ...form, zone: event.target.value })}
                 required
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Téléphone"
+                placeholder={t("clients.form.phonePh")}
                 value={form.phone}
                 onChange={(event) => setForm({ ...form, phone: event.target.value })}
                 required
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Email"
+                placeholder={t("clients.form.emailPh")}
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm({ ...form, email: event.target.value })}
@@ -414,7 +420,7 @@ export function ClientsView() {
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Potentiel /100"
+                placeholder={t("clients.form.potentialPh")}
                 type="number"
                 min="0"
                 max="100"
@@ -423,16 +429,16 @@ export function ClientsView() {
               />
               <textarea
                 className="min-h-28 rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm md:col-span-2"
-                placeholder="Notes"
+                placeholder={t("clients.form.notesPh")}
                 value={form.notes}
                 onChange={(event) => setForm({ ...form, notes: event.target.value })}
               />
             </div>
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
-                Annuler
+                {t("common.cancel")}
               </Button>
-              <Button type="submit" loading={savingClient}>Enregistrer</Button>
+              <Button type="submit" loading={savingClient}>{t("common.save")}</Button>
             </div>
           </form>
         </div>
@@ -445,12 +451,12 @@ export function ClientsView() {
             className="w-full max-w-lg space-y-4 rounded-3xl border border-outline-variant bg-surface-container-lowest p-6 shadow-xl"
           >
             <div>
-              <p className="text-sm font-bold text-on-surface">Planifier une visite</p>
+              <p className="text-sm font-bold text-on-surface">{t("clients.visit.title")}</p>
               <p className="mt-1 text-xs text-secondary">{showVisitFor.name}</p>
             </div>
             <textarea
               className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="Objectif de la visite"
+              placeholder={t("clients.visit.objectivePh")}
               value={visitForm.objective}
               onChange={(event) => setVisitForm({ ...visitForm, objective: event.target.value })}
               required
@@ -480,9 +486,9 @@ export function ClientsView() {
             </div>
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => setShowVisitFor(null)}>
-                Annuler
+                {t("common.cancel")}
               </Button>
-              <Button type="submit" loading={savingVisit}>Planifier</Button>
+              <Button type="submit" loading={savingVisit}>{t("clients.card.plan")}</Button>
             </div>
           </form>
         </div>

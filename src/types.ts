@@ -45,7 +45,25 @@ export type PermissionKey =
   | "campaigns.delete"
   | "calls.delete"
   | "activities.delete"
-  | "approvals.write";
+  | "approvals.write"
+  // --- Phase 0 foundations: post-sale & ops permission contract ---
+  | "pricing.read"
+  | "pricing.write"
+  | "discounts.approve"
+  | "stock.read"
+  | "stock.adjust"
+  | "delivery.read"
+  | "delivery.write"
+  | "delivery.pod"
+  | "payments.read"
+  | "payments.write"
+  | "collections.write"
+  | "credit.override"
+  | "invoices.read"
+  | "invoices.write"
+  | "compliance.read"
+  | "routes.optimize"
+  | "insights.benchmark";
 
 export type ClientType = "prospect" | "client";
 export type ClientStatus = "active" | "inactive" | "blocked";
@@ -98,7 +116,20 @@ export type PlanFeature =
   | "assistant_ai"
   | "advanced_reports"
   | "automations"
-  | "unlimited_integrations";
+  | "unlimited_integrations"
+  // --- Phase 0 foundations: feature flags for the new modules ---
+  | "pricing_engine"
+  | "stock"
+  | "delivery"
+  | "payments_collections"
+  | "compliance_ma"
+  | "whatsapp_automation"
+  | "voice_darija"
+  | "pos_map"
+  | "smart_routes"
+  | "trust_score"
+  | "manager_copilot"
+  | "benchmark";
 
 export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   essentiel: "Essentiel",
@@ -108,15 +139,21 @@ export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
 };
 
 export const PLAN_FEATURES: Record<SubscriptionPlan, PlanFeature[]> = {
-  essentiel: ["contacts", "pipeline", "visits", "orders"],
+  essentiel: ["contacts", "pipeline", "visits", "orders", "click_to_call"],
   professionnel: ["contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call"],
   enterprise: [
     "contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call",
     "assistant_ai", "advanced_reports", "automations", "unlimited_integrations",
+    "pricing_engine", "stock", "delivery", "payments_collections", "compliance_ma",
+    "whatsapp_automation", "voice_darija", "pos_map", "smart_routes",
+    "trust_score", "manager_copilot", "benchmark",
   ],
   sur_mesure: [
     "contacts", "pipeline", "visits", "orders", "quotes", "whatsapp", "click_to_call",
     "assistant_ai", "advanced_reports", "automations", "unlimited_integrations",
+    "pricing_engine", "stock", "delivery", "payments_collections", "compliance_ma",
+    "whatsapp_automation", "voice_darija", "pos_map", "smart_routes",
+    "trust_score", "manager_copilot", "benchmark",
   ],
 };
 
@@ -207,6 +244,13 @@ export interface Client {
   lastVisit?: string | null;
   nextVisit?: string | null;
   notes?: string;
+  // --- Phase 0 foundations: Morocco legal identifiers (compliance_ma) ---
+  // Optional so existing records/seeds remain valid; surfaced on the account file.
+  ice?: string; // Identifiant Commun de l'Entreprise
+  taxId?: string; // IF — Identifiant Fiscal
+  rc?: string; // Registre du Commerce
+  fiscalAddress?: string;
+  fiscalCity?: string;
 }
 
 export interface Visit {
@@ -247,6 +291,8 @@ export interface Opportunity {
   territoryId: string;
   territoryLabel: string;
   lossReason?: string;
+  // Last update — used to flag deals that are stalling in a stage.
+  updatedAt?: string;
 }
 
 export interface Order {
@@ -392,6 +438,23 @@ export type ProspectStatus =
   | "converted"
   | "lost";
 
+// --- Phase 0 foundations: unified commercial lifecycle (the tunnel spine) ---
+// Derived (never stored): computed from the dominant entity state so the dashboard,
+// map, routes, copilot and reminders all speak the same language. See src/lib/lifecycle.ts.
+export type LifecycleStage =
+  | "prospect" // lead capté, pas encore contacté
+  | "contacted" // premier contact établi
+  | "qualified" // besoin qualifié
+  | "opportunity" // opportunité ouverte au pipeline
+  | "quoted" // devis envoyé
+  | "signed" // devis signé
+  | "client" // converti en compte client
+  | "order" // commande passée
+  | "delivery" // en cours de livraison
+  | "payment" // paiement / recouvrement en cours
+  | "recurring" // client actif, visites récurrentes
+  | "lost"; // perdu (branche terminale)
+
 // Which sales force created/owns the lead.
 export type ProspectTeam = "call_center" | "field";
 
@@ -442,7 +505,11 @@ export interface Prospect extends ProspectFieldIntake {
   createdAt: string;
 }
 
-export type ActivityType = "call" | "email" | "note" | "task" | "meeting";
+export type ActivityType =
+  | "call" | "email" | "note" | "task" | "meeting"
+  // --- Phase 0 foundations: post-sale timeline event types ---
+  | "quote" | "order" | "delivery" | "payment"
+  | "collection" | "stock" | "return" | "visit_report";
 
 export interface Activity {
   id: string;
@@ -682,6 +749,24 @@ export type ContractStatus = "draft" | "active" | "renewal_due" | "expired" | "c
 export type CaseStatus = "open" | "pending" | "resolved" | "closed";
 export type CampaignStatus = "draft" | "scheduled" | "running" | "completed" | "paused";
 export type CallStatus = "planned" | "completed" | "missed";
+
+// Standardized click-to-call outcomes (stored in SalesCallItem.outcome).
+// Kept short (the métier recommends 5–7 dispositions that cover ~90% of calls).
+export type CallDisposition =
+  | "answered" // joint, échange réalisé
+  | "no_answer" // ne répond pas (NRP)
+  | "voicemail" // répondeur / message laissé
+  | "gatekeeper" // barrage secrétaire
+  | "not_interested" // pas intéressé
+  | "callback" // à rappeler (créneau convenu)
+  | "appointment"; // RDV obtenu
+
+export const CALL_DISPOSITIONS: CallDisposition[] = [
+  "answered", "no_answer", "voicemail", "gatekeeper", "not_interested", "callback", "appointment",
+];
+
+// Dispositions that mean "the call did not connect" → logged as a missed call.
+export const MISSED_CALL_DISPOSITIONS: CallDisposition[] = ["no_answer", "voicemail", "gatekeeper"];
 
 export interface ContractItem {
   id: string;

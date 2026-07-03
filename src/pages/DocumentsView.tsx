@@ -5,7 +5,9 @@ import { apiUrl, ApiError, asArray, getJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { formatDateTime } from "../lib/labels";
 
+import { useTranslation } from "../i18n";
 export function DocumentsView() {
+  const { t } = useTranslation();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,9 +83,9 @@ export function DocumentsView() {
     <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
       <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-end">
         <div>
-          <p className="text-sm text-secondary">Pièces jointes</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Documents</h1>
-          <p className="mt-1 text-sm text-secondary">Contrats, devis et justificatifs liés aux comptes.</p>
+          <p className="text-sm text-secondary">{t("documents.auto.piecesJointes")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("documents.auto.documents")}</h1>
+          <p className="mt-1 text-sm text-secondary">{t("documents.auto.contratsDevisEtJustificatifs")}</p>
         </div>
         <Button onClick={() => setShowAdd(true)}>
           <FileText className="mr-2 h-4 w-4" />
@@ -111,7 +113,7 @@ export function DocumentsView() {
                   {doc.sizeBytes > 0 ? ` · ${(doc.sizeBytes / 1024).toFixed(1)} KB` : ""}
                 </p>
               </div>
-              {doc.signedAt ? <Badge variant="success">Signé</Badge> : null}
+              {doc.signedAt ? <Badge variant="success">{t("documents.auto.signe")}</Badge> : null}
               <a
                 href={doc.blobUrl}
                 target="_blank"
@@ -130,12 +132,12 @@ export function DocumentsView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
           <form onSubmit={submit} className="w-full max-w-md space-y-3 rounded-2xl border border-outline-variant bg-white p-6 shadow-2xl">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-secondary">Nouveau document</p>
-              <h3 className="mt-1 text-xl font-black text-on-surface">Ajouter un fichier</h3>
+              <p className="text-xs font-bold uppercase tracking-wider text-secondary">{t("documents.auto.nouveauDocument")}</p>
+              <h3 className="mt-1 text-xl font-black text-on-surface">{t("documents.auto.ajouterUnFichier")}</h3>
             </div>
             <input
               className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="Nom du document"
+              placeholder={t("documents.auto.nomDuDocument")}
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               required={!file}
@@ -147,7 +149,7 @@ export function DocumentsView() {
             </label>
             <input
               className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm disabled:opacity-50"
-              placeholder="Ou URL externe (https://...)"
+              placeholder={t("documents.auto.ouUrlExterneHttps")}
               type="url"
               value={form.blobUrl}
               onChange={(event) => setForm({ ...form, blobUrl: event.target.value })}
@@ -155,14 +157,14 @@ export function DocumentsView() {
               disabled={Boolean(file)}
             />
             <select className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" value={form.clientId} onChange={(event) => setForm({ ...form, clientId: event.target.value })}>
-              <option value="">Aucun client</option>
+              <option value="">{t("documents.auto.aucunClient")}</option>
               {clients.map((client) => (
                 <option key={client.id} value={client.id}>{client.name}</option>
               ))}
             </select>
             {error ? <p className="text-xs text-error">{error}</p> : null}
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={resetForm}>Annuler</Button>
+              <Button type="button" variant="outline" onClick={resetForm}>{t("documents.auto.annuler")}</Button>
               <Button type="submit" disabled={uploading}>{uploading ? "Envoi..." : "Ajouter"}</Button>
             </div>
           </form>

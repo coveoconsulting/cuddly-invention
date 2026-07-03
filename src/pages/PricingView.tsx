@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Check, Sparkles } from "lucide-react";
 import { Logo } from "../components/Logo";
 
+import { useTranslation } from "../i18n";
 type Tier = {
   id: "essentiel" | "professionnel" | "enterprise" | "sur_mesure";
   name: string;
@@ -85,6 +86,7 @@ const TIERS: Tier[] = [
 ];
 
 export function PricingView() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-surface">
       <header className="border-b border-outline-variant bg-surface-container-lowest">

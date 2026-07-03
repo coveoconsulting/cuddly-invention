@@ -6,6 +6,7 @@ import { Badge, Button } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
 import { formatDateTime } from "../lib/labels";
 
+import { useTranslation } from "../i18n";
 type IntegrationForm = {
   endpointUrl: string;
   status: IntegrationItem["status"];
@@ -13,6 +14,7 @@ type IntegrationForm = {
 };
 
 export function IntegrationsView() {
+  const { t } = useTranslation();
   const [integrations, setIntegrations] = useState<IntegrationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editing, setEditing] = useState<IntegrationItem | null>(null);
@@ -81,8 +83,8 @@ export function IntegrationsView() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
       <div>
-        <p className="text-sm text-secondary">Connecteurs et synchronisations</p>
-        <h1 className="mt-1 text-3xl font-black text-on-surface">Integrations</h1>
+        <p className="text-sm text-secondary">{t("integrations.auto.connecteursEtSynchronisations")}</p>
+        <h1 className="mt-1 text-3xl font-black text-on-surface">{t("integrations.auto.integrations")}</h1>
       </div>
 
       {error ? (
@@ -97,7 +99,7 @@ export function IntegrationsView() {
         </div>
       ) : integrations.length === 0 ? (
         <EmptyState
-          title="Aucune integration configuree"
+          title={t("integrations.auto.aucuneIntegrationConfiguree")}
           description="Les connecteurs ERP, messagerie, cartographie ou stock apparaitront ici des leur configuration."
         />
       ) : (
@@ -176,7 +178,7 @@ export function IntegrationsView() {
             </div>
             <input
               className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="Endpoint API / webhook / URL connecteur"
+              placeholder={t("integrations.auto.endpointApiWebhookUrl")}
               value={form.endpointUrl}
               onChange={(event) => setForm({ ...form, endpointUrl: event.target.value })}
             />
@@ -185,13 +187,13 @@ export function IntegrationsView() {
               value={form.status}
               onChange={(event) => setForm({ ...form, status: event.target.value as IntegrationItem["status"] })}
             >
-              <option value="configured">Configure</option>
-              <option value="connected">Connecte</option>
-              <option value="attention">Attention requise</option>
+              <option value="configured">{t("integrations.auto.configure")}</option>
+              <option value="connected">{t("integrations.auto.connecte")}</option>
+              <option value="attention">{t("integrations.auto.attentionRequise")}</option>
             </select>
             <textarea
               className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="Description operationnelle"
+              placeholder={t("integrations.auto.descriptionOperationnelle")}
               value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
             />

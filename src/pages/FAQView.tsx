@@ -1,3 +1,5 @@
+import { useTranslation } from "../i18n";
+
 const faqs = [
   {
     question: "Comment créer un compte client ?",
@@ -37,11 +39,12 @@ const faqs = [
 ];
 
 export function FAQView() {
+  const { t } = useTranslation();
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       <div>
-        <p className="text-sm text-secondary">Aide</p>
-        <h1 className="text-3xl font-black text-on-surface mt-1">Questions fréquentes</h1>
+        <p className="text-sm text-secondary">{t("faq.auto.aide")}</p>
+        <h1 className="text-3xl font-black text-on-surface mt-1">{t("faq.auto.questionsFrequentes")}</h1>
       </div>
 
       <div className="space-y-4">

@@ -996,6 +996,11 @@ class PostgresDatabase implements DataStore {
         lastVisit: toDateOrNull(row.last_visit),
         nextVisit: toDateOrNull(row.next_visit),
         notes: row.notes ?? "",
+        ice: row.ice ?? "",
+        taxId: row.tax_id ?? "",
+        rc: row.rc ?? "",
+        fiscalAddress: row.fiscal_address ?? "",
+        fiscalCity: row.fiscal_city ?? "",
       })),
       visits: visits.rows.map((row) => ({
         id: row.id,
@@ -1040,6 +1045,7 @@ class PostgresDatabase implements DataStore {
         territoryId: row.territory_id,
         territoryLabel: territoryLabel.get(row.territory_id) ?? "",
         lossReason: row.loss_reason ?? undefined,
+        updatedAt: toIsoOrNull(row.updated_at) ?? undefined,
       })),
       orders: orders.rows.map((row) => ({
         id: row.id,
@@ -1346,6 +1352,11 @@ class PostgresDatabase implements DataStore {
         "last_visit",
         "next_visit",
         "notes",
+        "ice",
+        "tax_id",
+        "rc",
+        "fiscal_address",
+        "fiscal_city",
       ],
       values: [
         row.id,
@@ -1366,6 +1377,11 @@ class PostgresDatabase implements DataStore {
         row.lastVisit ?? null,
         row.nextVisit ?? null,
         row.notes ?? "",
+        row.ice ?? "",
+        row.taxId ?? "",
+        row.rc ?? "",
+        row.fiscalAddress ?? "",
+        row.fiscalCity ?? "",
       ],
       id: row.id,
     }));
@@ -3154,6 +3170,11 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
           lastVisit: null,
           nextVisit: null,
           notes: String(req.body?.notes || "").trim(),
+          ice: String(req.body?.ice || "").trim(),
+          taxId: String(req.body?.taxId || "").trim(),
+          rc: String(req.body?.rc || "").trim(),
+          fiscalAddress: String(req.body?.fiscalAddress || "").trim(),
+          fiscalCity: String(req.body?.fiscalCity || "").trim(),
         };
         db.clients.push(createdClient);
         addAuditLog(db, actor.id, "client.created", "client", createdClient.id, {
@@ -3197,6 +3218,11 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
           financialRisk: ["low", "medium", "high"].includes(req.body?.financialRisk)
             ? req.body.financialRisk
             : current.financialRisk,
+          ice: req.body?.ice !== undefined ? String(req.body.ice).trim() : current.ice,
+          taxId: req.body?.taxId !== undefined ? String(req.body.taxId).trim() : current.taxId,
+          rc: req.body?.rc !== undefined ? String(req.body.rc).trim() : current.rc,
+          fiscalAddress: req.body?.fiscalAddress !== undefined ? String(req.body.fiscalAddress).trim() : current.fiscalAddress,
+          fiscalCity: req.body?.fiscalCity !== undefined ? String(req.body.fiscalCity).trim() : current.fiscalCity,
         };
         updated = db.clients[index];
         addAuditLog(db, actor.id, "client.updated", "client", req.params.id);
@@ -3481,6 +3507,7 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
           territoryId: territory.id,
           territoryLabel: territory.label,
           lossReason: stage === "lost" ? String(req.body?.lossReason || "Motif non renseigne") : undefined,
+          updatedAt: new Date().toISOString(),
         };
         db.opportunities.push(created);
         addAuditLog(db, actor.id, "opportunity.created", "opportunity", created.id);
@@ -3519,6 +3546,7 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
             stage === "lost"
               ? String(req.body?.lossReason || current.lossReason || "Motif non renseigne")
               : current.lossReason,
+          updatedAt: new Date().toISOString(),
         };
         updated = db.opportunities[index];
         addAuditLog(db, actor.id, "opportunity.updated", "opportunity", req.params.id, { stage });
@@ -3554,6 +3582,7 @@ export async function createApp(options: { serveFrontend?: boolean } = {}) {
             nextStage === "lost"
               ? String(req.body?.lossReason || db.opportunities[index].lossReason || "Motif a qualifier")
               : undefined,
+          updatedAt: new Date().toISOString(),
         };
         updated = db.opportunities[index];
         addAuditLog(db, actor.id, "opportunity.stage_updated", "opportunity", req.params.id, {
@@ -5954,11 +5983,15 @@ Alertes: ${dashboard.alerts.map((alert) => alert.title).join(" | ")}
       }
       const contentType = String(req.headers["content-type"] || "audio/webm");
       const ext = contentType.includes("mp4") ? "mp4" : contentType.includes("wav") ? "wav" : contentType.includes("mpeg") ? "mp3" : "webm";
+      // Whisper language hint (fr/ar/en). Darija is transcribed as Arabic ("ar");
+      // the dialect nuance is handled downstream by the voice-intake LLM prompt.
+      const langParam = String((req.query?.lang as string) || "fr").toLowerCase();
+      const sttLang = ["fr", "ar", "en"].includes(langParam) ? langParam : "fr";
       try {
         const form = new FormData();
         form.append("file", new Blob([body], { type: contentType }), `audio.${ext}`);
         form.append("model", GROQ_STT_MODEL);
-        form.append("language", "fr");
+        form.append("language", sttLang);
         form.append("response_format", "json");
         const r = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
           method: "POST",
@@ -5989,7 +6022,18 @@ Alertes: ${dashboard.alerts.map((alert) => alert.title).join(" | ")}
     asyncRoute(async (req: AuthenticatedRequest, res) => {
       const text = String(req.body?.text || "").trim();
       const entityName = String(req.body?.entityName || "").trim();
+      const langHint = String(req.body?.lang || "fr").toLowerCase();
       const currency = (await store.read()).company.currency || "MAD";
+      // Human-readable source language for the prompt. Darija = Moroccan dialect
+      // (may arrive transliterated in Latin script or in Arabic script).
+      const spokenLanguage =
+        langHint === "darija"
+          ? "en darija (arabe dialectal marocain, éventuellement translittéré en lettres latines)"
+          : langHint === "ar"
+            ? "en arabe standard"
+            : langHint === "en"
+              ? "en anglais"
+              : "en français";
       if (!text) {
         res.status(400).json({ error: "Texte vide" });
         return;
@@ -5999,7 +6043,7 @@ Alertes: ${dashboard.alerts.map((alert) => alert.title).join(" | ")}
         return;
       }
       const today = new Date().toISOString().slice(0, 10);
-      const system = `Tu es un assistant CRM pour une force de vente. À partir d'une note dictée par un commercial (en français), tu extrais des actions structurées. Réponds UNIQUEMENT en JSON valide, sans texte autour, avec EXACTEMENT ce schéma:
+      const system = `Tu es un assistant CRM pour une force de vente terrain au Maroc. La note est dictée par un commercial ${spokenLanguage}. Comprends-la quelle que soit la langue, mais rédige TOUJOURS tes sorties (summary, need, solutionFit, subject, email) EN FRANÇAIS propre et professionnel pour le manager. Tu extrais des actions structurées. Réponds UNIQUEMENT en JSON valide, sans texte autour, avec EXACTEMENT ce schéma:
 {
   "summary": "résumé d'une phrase en français",
   "qualification": { "need": "besoin détecté ou ''", "solutionFit": "adéquation avec notre offre ou ''" },

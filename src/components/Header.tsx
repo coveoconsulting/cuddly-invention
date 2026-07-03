@@ -5,7 +5,9 @@ import { Bell, CheckCheck, ChevronRight, Loader2, LogOut, Menu, Search } from "l
 import { Badge, Button } from "./ui";
 import { Logo } from "./Logo";
 import { OfflineIndicator } from "./OfflineIndicator";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 import { formatRelativeTime } from "../lib/labels";
 import type { NotificationLevel } from "../types";
 
@@ -26,18 +28,20 @@ type SearchResults = {
   orders: SearchHit[];
 };
 
-const SECTION_LABELS: Array<{ key: keyof SearchResults; label: string }> = [
-  { key: "clients", label: "Comptes" },
-  { key: "prospects", label: "Prospects" },
-  { key: "visits", label: "Visites" },
-  { key: "opportunities", label: "Opportunités" },
-  { key: "orders", label: "Commandes" },
+// i18n key suffix per section — resolved to a label at render via t("header.section.*").
+const SECTION_LABELS: Array<{ key: keyof SearchResults; labelKey: string }> = [
+  { key: "clients", labelKey: "header.section.clients" },
+  { key: "prospects", labelKey: "header.section.prospects" },
+  { key: "visits", labelKey: "header.section.visits" },
+  { key: "opportunities", labelKey: "header.section.opportunities" },
+  { key: "orders", labelKey: "header.section.orders" },
 ];
 
 export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: () => void; menuDisabled?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const { t } = useTranslation();
   const { company, currentUser, notifications, signOut, markNotificationRead, refreshNotifications } = useWorkspace();
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -151,9 +155,9 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
     try {
       await postJson("/api/v1/notifications/read-all");
       await refreshNotifications();
-      toast.success("Toutes les notifications marquées lues");
+      toast.success(t("header.allRead"));
     } catch {
-      toast.error("Impossible de marquer comme lu");
+      toast.error(t("header.markReadError"));
     }
   };
 
@@ -164,7 +168,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
       <div className="flex min-w-0 items-center gap-2 lg:hidden">
         <button
           type="button"
-          aria-label="Ouvrir le menu"
+          aria-label={t("header.openMenu")}
           onClick={() => onOpenMobileMenu?.()}
           disabled={menuDisabled}
           className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-white/80 hover:bg-white disabled:pointer-events-none"
@@ -187,7 +191,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
             }}
             onFocus={() => setSearchOpen(true)}
             onKeyDown={handleSearchKeyDown}
-            placeholder="Rechercher un compte, une visite, une commande..."
+            placeholder={t("header.searchPlaceholder")}
             className="w-full bg-transparent text-sm text-on-surface outline-none placeholder:text-secondary"
           />
           {searchLoading ? (
@@ -209,9 +213,9 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
               className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[480px] overflow-y-auto rounded-xl border border-outline-variant bg-white shadow-[0_24px_60px_rgba(20,33,28,0.18)]"
             >
               {searchResults === null && searchLoading ? (
-                <p className="px-4 py-4 text-sm text-secondary">Recherche…</p>
+                <p className="px-4 py-4 text-sm text-secondary">{t("header.searching")}</p>
               ) : totalHits === 0 ? (
-                <p className="px-4 py-4 text-sm text-secondary">Aucun résultat.</p>
+                <p className="px-4 py-4 text-sm text-secondary">{t("header.noResults")}</p>
               ) : (
                 SECTION_LABELS.map((section) => {
                   const hits = searchResults?.[section.key] ?? [];
@@ -219,7 +223,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
                   return (
                     <div key={section.key} className="border-b border-outline-variant last:border-b-0">
                       <p className="bg-surface-container-low px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-secondary">
-                        {section.label}
+                        {t(section.labelKey)}
                       </p>
                       {hits.map((hit) => {
                         cursor += 1;
@@ -251,7 +255,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
       <div className="ml-auto flex items-center gap-2">
         <button
           type="button"
-          aria-label="Rechercher"
+          aria-label={t("header.search")}
           onClick={() => setMobileSearchOpen(true)}
           className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-white/80 transition-all hover:bg-white hover:shadow-sm lg:hidden"
         >
@@ -260,11 +264,13 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
 
         <OfflineIndicator />
 
+        <LanguageSwitcher />
+
         <div ref={notifRef} className="relative">
           <button
             type="button"
             onClick={() => setShowNotifications((value) => !value)}
-            aria-label="Notifications"
+            aria-label={t("header.notifications")}
             className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-white/80 transition-all hover:bg-white hover:shadow-sm"
           >
             <Bell className="h-4 w-4 text-secondary" />
@@ -293,21 +299,21 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
               >
                 <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
                   <div>
-                    <p className="text-sm font-bold text-on-surface">Notifications</p>
-                    <p className="text-xs text-secondary">{unread.length} non lue(s)</p>
+                    <p className="text-sm font-bold text-on-surface">{t("header.notifications")}</p>
+                    <p className="text-xs text-secondary">{t("header.unreadCount", { count: unread.length })}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     {unread.length > 0 ? (
                       <Button variant="ghost" size="sm" onClick={markAllRead} className="gap-1">
                         <CheckCheck className="h-3.5 w-3.5" />
-                        Tout lu
+                        {t("header.markAllRead")}
                       </Button>
                     ) : null}
                   </div>
                 </div>
                 <div className="max-h-[360px] overflow-y-auto">
                   {notifications.length === 0 ? (
-                    <div className="px-4 py-6 text-sm text-secondary">Aucune notification.</div>
+                    <div className="px-4 py-6 text-sm text-secondary">{t("header.noNotifications")}</div>
                   ) : (
                     notifications.slice(0, 8).map((notification) => (
                       <button
@@ -332,7 +338,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
                               <p className={`text-sm text-on-surface ${notification.read ? "font-semibold" : "font-bold"}`}>
                                 {notification.title}
                               </p>
-                              {!notification.read ? <Badge variant="success">Nouveau</Badge> : null}
+                              {!notification.read ? <Badge variant="success">{t("header.new")}</Badge> : null}
                             </div>
                             <p className="text-xs text-secondary">{notification.body}</p>
                           </div>
@@ -349,7 +355,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
                   onClick={() => setShowNotifications(false)}
                   className="flex items-center justify-center gap-1 border-t border-outline-variant bg-surface-container-low px-4 py-2.5 text-xs font-semibold text-on-surface hover:bg-surface-container"
                 >
-                  Voir toutes les notifications
+                  {t("header.seeAllNotifications")}
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
               </motion.div>
@@ -378,7 +384,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
         <button
           type="button"
           onClick={signOut}
-          aria-label="Se déconnecter"
+          aria-label={t("header.signOut")}
           className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-white/80 transition-all hover:bg-white hover:shadow-sm"
         >
           <LogOut className="h-4 w-4 text-secondary" />
@@ -396,7 +402,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Rechercher un compte, une visite…"
+                placeholder={t("header.searchPlaceholderShort")}
                 className="w-full bg-transparent text-base text-on-surface outline-none placeholder:text-secondary"
               />
               {searchLoading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-secondary" /> : null}
@@ -406,14 +412,14 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
               onClick={() => setMobileSearchOpen(false)}
               className="shrink-0 px-2 py-2 text-sm font-semibold text-secondary"
             >
-              Fermer
+              {t("header.close")}
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {searchQuery.trim().length < 2 ? (
-              <p className="px-4 py-6 text-sm text-secondary">Tapez au moins 2 caractères pour rechercher.</p>
+              <p className="px-4 py-6 text-sm text-secondary">{t("header.typeToSearch")}</p>
             ) : totalHits === 0 && !searchLoading ? (
-              <p className="px-4 py-6 text-sm text-secondary">Aucun résultat.</p>
+              <p className="px-4 py-6 text-sm text-secondary">{t("header.noResults")}</p>
             ) : (
               SECTION_LABELS.map((section) => {
                 const hits = searchResults?.[section.key] ?? [];
@@ -421,7 +427,7 @@ export function Header({ onOpenMobileMenu, menuDisabled }: { onOpenMobileMenu?: 
                 return (
                   <div key={section.key} className="border-b border-outline-variant last:border-b-0">
                     <p className="bg-surface-container-low px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-secondary">
-                      {section.label}
+                      {t(section.labelKey)}
                     </p>
                     {hits.map((hit) => (
                       <button

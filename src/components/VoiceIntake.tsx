@@ -4,6 +4,19 @@ import { apiUrl, ApiError, postJson } from "../lib/api";
 import { sendOrQueue } from "../lib/offlineQueue";
 import { Button } from "./ui";
 import { useToast } from "./Toast";
+import { useTranslation } from "../i18n";
+
+// Dictation languages. `stt` is the Whisper language code sent to transcription;
+// Darija (Moroccan) has no distinct Whisper code, so it transcribes as Arabic but
+// carries a dialect hint so the LLM interprets it correctly. Whatever the spoken
+// language, the server normalizes the CRM summary back to French for the manager.
+type VoiceLang = "fr" | "darija" | "ar" | "en";
+const VOICE_LANGS: Array<{ id: VoiceLang; labelKey: string; stt: string }> = [
+  { id: "fr", labelKey: "voice.lang.fr", stt: "fr" },
+  { id: "darija", labelKey: "voice.lang.darija", stt: "ar" },
+  { id: "ar", labelKey: "voice.lang.ar", stt: "ar" },
+  { id: "en", labelKey: "voice.lang.en", stt: "en" },
+];
 
 interface VoiceActions {
   summary?: string;
@@ -38,6 +51,7 @@ function toLocalInput(iso?: string): string {
  */
 export function VoiceIntake({ entityName, prospectId, clientId, currency = "MAD", onApplied, onCreateQuote }: VoiceIntakeProps) {
   const toast = useToast();
+  const { t } = useTranslation();
   const [recording, setRecording] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -46,6 +60,7 @@ export function VoiceIntake({ entityName, prospectId, clientId, currency = "MAD"
   const [transcript, setTranscript] = useState("");
   const [actions, setActions] = useState<VoiceActions | null>(null);
   const [scheduleAt, setScheduleAt] = useState("");
+  const [voiceLang, setVoiceLang] = useState<VoiceLang>("darija");
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -56,6 +71,9 @@ export function VoiceIntake({ entityName, prospectId, clientId, currency = "MAD"
       const res = await postJson<{ transcript: string; actions: VoiceActions }>(`/api/v1/ai/voice-intake`, {
         text,
         entityName,
+        // Tell the LLM which language was spoken (esp. Darija) so it interprets
+        // the note correctly. The summary/qualification always come back in French.
+        lang: voiceLang,
       });
       setTranscript(res.transcript || text);
       setActions(res.actions || {});
@@ -71,7 +89,8 @@ export function VoiceIntake({ entityName, prospectId, clientId, currency = "MAD"
   const processAudio = async (blob: Blob) => {
     setProcessing(true);
     try {
-      const r = await fetch(apiUrl(`/api/v1/ai/transcribe`), {
+      const stt = VOICE_LANGS.find((l) => l.id === voiceLang)?.stt || "fr";
+      const r = await fetch(apiUrl(`/api/v1/ai/transcribe?lang=${encodeURIComponent(stt)}`), {
         method: "POST",
         credentials: "include",
         headers: { "content-type": blob.type || "audio/webm" },
@@ -112,7 +131,7 @@ export function VoiceIntake({ entityName, prospectId, clientId, currency = "MAD"
       recorder.start();
       setRecording(true);
     } catch {
-      toast.error("Micro indisponible — utilisez la saisie texte");
+      toast.error(t("voice.micUnavailable"));
     }
   };
 
@@ -190,14 +209,25 @@ export function VoiceIntake({ entityName, prospectId, clientId, currency = "MAD"
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={voiceLang}
+          onChange={(e) => setVoiceLang(e.target.value as VoiceLang)}
+          aria-label={t("voice.language")}
+          disabled={recording || processing}
+          className="rounded-lg border border-outline-variant bg-surface px-2 py-1.5 text-xs font-semibold text-secondary outline-none focus:border-primary disabled:opacity-60"
+        >
+          {VOICE_LANGS.map((l) => (
+            <option key={l.id} value={l.id}>{t(l.labelKey)}</option>
+          ))}
+        </select>
         {recording ? (
           <Button size="sm" variant="outline" onClick={stopRecording} className="border-error text-error">
-            <Square className="mr-1 h-3.5 w-3.5 fill-current" /> Arrêter
+            <Square className="mr-1 h-3.5 w-3.5 fill-current" /> {t("voice.stop")}
           </Button>
         ) : (
           <Button size="sm" variant="outline" onClick={() => void startRecording()} disabled={processing}>
             {processing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Mic className="mr-1 h-3.5 w-3.5" />}
-            {processing ? "Analyse…" : "Note vocale"}
+            {processing ? t("voice.analyzing") : t("voice.record")}
           </Button>
         )}
         <div className="flex flex-1 items-center gap-1.5">
@@ -205,7 +235,7 @@ export function VoiceIntake({ entityName, prospectId, clientId, currency = "MAD"
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) void analyzeText(typed.trim()); }}
-            placeholder="…ou dictez/tapez : « RDV vendredi, devis 1M, budget OK »"
+            placeholder={t("voice.hint")}
             className="min-w-0 flex-1 rounded-lg border border-outline-variant bg-surface px-3 py-1.5 text-xs outline-none focus:border-primary"
           />
           <Button size="sm" variant="ghost" onClick={() => typed.trim() && void analyzeText(typed.trim())} disabled={processing || !typed.trim()}>

@@ -6,6 +6,7 @@ import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
 import { PermissionGuard } from "./components/PermissionGuard";
 import { Logo } from "./components/Logo";
+import { I18nProvider } from "./i18n";
 import type { PermissionKey } from "./types";
 
 // Defence in depth: the sidebar already hides forbidden links, but a direct URL
@@ -142,14 +143,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ToastProvider>
-        <DialogProvider>
-          <WorkspaceProvider>
-            <AppRoutes />
-          </WorkspaceProvider>
-        </DialogProvider>
-      </ToastProvider>
-    </BrowserRouter>
+    <I18nProvider>
+      <BrowserRouter>
+        <ToastProvider>
+          <DialogProvider>
+            <WorkspaceProvider>
+              <AppRoutes />
+            </WorkspaceProvider>
+          </DialogProvider>
+        </ToastProvider>
+      </BrowserRouter>
+    </I18nProvider>
   );
 }

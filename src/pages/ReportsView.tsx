@@ -21,6 +21,7 @@ import { formatCurrency, pipelineStageLabel } from "../lib/labels";
 import { Button } from "../components/ui";
 import { buildCsv, downloadCsv } from "../lib/csv";
 
+import { useTranslation } from "../i18n";
 type Summary = {
   revenueByTerritory: Array<{ territory: string; revenue: number; clients: number }>;
   pipelineByStage: Array<{ stage: PipelineStage; amount: number; count: number }>;
@@ -39,6 +40,7 @@ const STAGE_COLORS: Record<PipelineStage, string> = {
 };
 
 function isSummary(value: unknown): value is Summary {
+  const { t } = useTranslation();
   return Boolean(value) && typeof value === "object" && "kpis" in value;
 }
 
@@ -49,10 +51,12 @@ type Forecast = {
 };
 
 function isForecast(value: unknown): value is Forecast {
+  const { t } = useTranslation();
   return Boolean(value) && typeof value === "object" && "monthly" in value && "totals" in value;
 }
 
 export function ReportsView() {
+  const { t } = useTranslation();
   const { company } = useWorkspace();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
@@ -111,7 +115,7 @@ export function ReportsView() {
   if (!summary || !company) {
     return (
       <div className="p-6">
-        <p className="text-sm text-secondary">Aucune donnée disponible.</p>
+        <p className="text-sm text-secondary">{t("reports.auto.aucuneDonneeDisponible")}</p>
       </div>
     );
   }
@@ -124,8 +128,8 @@ export function ReportsView() {
     <div className="mx-auto max-w-[1380px] space-y-6 p-4 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-secondary">Pilotage</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Rapports</h1>
+          <p className="text-sm text-secondary">{t("reports.auto.pilotage")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("reports.auto.rapports")}</h1>
         </div>
         <Button
           variant="outline"
@@ -161,7 +165,7 @@ export function ReportsView() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-outline-variant bg-surface-container-lowest p-3">
-        <label className="text-xs text-secondary">Du</label>
+        <label className="text-xs text-secondary">{t("reports.auto.du")}</label>
         <input
           type="date"
           value={from}
@@ -197,8 +201,8 @@ export function ReportsView() {
         <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-on-surface">Prévision de CA (pondéré par stage)</p>
-              <p className="text-xs text-secondary">Brut : pipeline plein. Pondéré : ajusté par probabilité.</p>
+              <p className="text-sm font-bold text-on-surface">{t("reports.auto.previsionDeCaPondere")}</p>
+              <p className="text-xs text-secondary">{t("reports.auto.brutPipelinePleinPondere")}</p>
             </div>
             <div className="text-right">
               <p className="text-2xl font-black text-on-surface">
@@ -224,7 +228,7 @@ export function ReportsView() {
       ) : null}
 
       <section className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title="Revenu par mois" subtitle="12 derniers mois">
+        <ChartCard title={t("reports.auto.revenuParMois")} subtitle={t("reports.auto.12DerniersMois")}>
           {summary.revenueByMonth.length === 0 ? (
             <EmptyChart message="Aucune commande encore" />
           ) : (
@@ -240,7 +244,7 @@ export function ReportsView() {
           )}
         </ChartCard>
 
-        <ChartCard title="Pipeline par étape" subtitle="Montants ouverts">
+        <ChartCard title={t("reports.auto.pipelineParEtape")} subtitle={t("reports.auto.montantsOuverts")}>
           {summary.pipelineByStage.every((entry) => entry.amount === 0) ? (
             <EmptyChart message="Aucune opportunité encore" />
           ) : (
@@ -260,7 +264,7 @@ export function ReportsView() {
           )}
         </ChartCard>
 
-        <ChartCard title="Revenu par territoire" subtitle="Tous statuts confondus">
+        <ChartCard title={t("reports.auto.revenuParTerritoire")} subtitle={t("reports.auto.tousStatutsConfondus")}>
           {summary.revenueByTerritory.every((entry) => entry.revenue === 0) ? (
             <EmptyChart message="Aucun revenu par territoire" />
           ) : (
@@ -276,7 +280,7 @@ export function ReportsView() {
           )}
         </ChartCard>
 
-        <ChartCard title="Visites terrain" subtitle={`Taux de complétion : ${visitCompletionRate}%`}>
+        <ChartCard title={t("reports.auto.visitesTerrain")} subtitle={`Taux de complétion : ${visitCompletionRate}%`}>
           {summary.visitStats.total === 0 ? (
             <EmptyChart message="Aucune visite encore" />
           ) : (
@@ -304,16 +308,16 @@ export function ReportsView() {
       </section>
 
       <section className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
-        <h3 className="text-sm font-bold text-on-surface">Top 10 clients</h3>
+        <h3 className="text-sm font-bold text-on-surface">{t("reports.auto.top10Clients")}</h3>
         {summary.topClients.length === 0 ? (
-          <p className="mt-3 text-sm text-secondary">Aucune commande client encore.</p>
+          <p className="mt-3 text-sm text-secondary">{t("reports.auto.aucuneCommandeClientEncore")}</p>
         ) : (
           <table className="mt-3 w-full text-sm">
             <thead>
               <tr className="border-b border-outline-variant text-left text-xs uppercase tracking-wider text-secondary">
                 <th className="py-2">#</th>
-                <th>Client</th>
-                <th className="text-right">CA</th>
+                <th>{t("reports.auto.client")}</th>
+                <th className="text-right">{t("reports.auto.ca")}</th>
               </tr>
             </thead>
             <tbody>
@@ -333,6 +337,7 @@ export function ReportsView() {
 }
 
 function KpiCard({ label, value }: { label: string; value: string }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wider text-secondary">{label}</p>
@@ -342,6 +347,7 @@ function KpiCard({ label, value }: { label: string; value: string }) {
 }
 
 function ChartCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
       <div className="mb-3">
@@ -354,6 +360,7 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle: str
 }
 
 function EmptyChart({ message }: { message: string }) {
+  const { t } = useTranslation();
   return (
     <div className="flex h-[280px] items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface text-sm text-secondary">
       {message}

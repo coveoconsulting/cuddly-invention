@@ -12,6 +12,7 @@ import type { ComponentType } from "react";
 import { formatCurrency, formatDateTime, type BadgeTone } from "../lib/labels";
 import { useWorkspace } from "../context/WorkspaceContext";
 
+import { useTranslation } from "../i18n";
 type ModuleKind = "contracts" | "cases" | "campaigns" | "calls";
 type ModuleItem = ContractItem | CaseItem | CampaignItem | SalesCallItem;
 
@@ -58,6 +59,7 @@ const config = {
 }>;
 
 function tone(status: string): BadgeTone {
+  const { t } = useTranslation();
   if (["active", "running", "completed", "resolved"].includes(status)) return "success";
   if (["renewal_due", "pending", "scheduled", "planned"].includes(status)) return "warning";
   if (["expired", "cancelled", "missed"].includes(status)) return "error";
@@ -65,6 +67,7 @@ function tone(status: string): BadgeTone {
 }
 
 function itemTitle(kind: ModuleKind, item: ModuleItem) {
+  const { t } = useTranslation();
   if (kind === "contracts") return (item as ContractItem).number;
   if (kind === "cases") return (item as CaseItem).title;
   if (kind === "campaigns") return (item as CampaignItem).name;
@@ -72,6 +75,7 @@ function itemTitle(kind: ModuleKind, item: ModuleItem) {
 }
 
 function itemSubtitle(kind: ModuleKind, item: ModuleItem) {
+  const { t } = useTranslation();
   if (kind === "contracts") {
     const contract = item as ContractItem;
     return `${contract.clientName} · renouvellement ${contract.renewalDate || contract.endDate}`;
@@ -89,6 +93,7 @@ function itemSubtitle(kind: ModuleKind, item: ModuleItem) {
 }
 
 function metric(kind: ModuleKind, item: ModuleItem, currency: string) {
+  const { t } = useTranslation();
   if (kind === "contracts") return formatCurrency((item as ContractItem).amount, currency);
   if (kind === "campaigns") {
     const campaign = item as CampaignItem;
@@ -102,6 +107,7 @@ function metric(kind: ModuleKind, item: ModuleItem, currency: string) {
 }
 
 function OperationsModule({ kind }: { kind: ModuleKind }) {
+  const { t } = useTranslation();
   const module = config[kind];
   const Icon = module.icon;
   const { company, can } = useWorkspace();
@@ -203,7 +209,7 @@ function OperationsModule({ kind }: { kind: ModuleKind }) {
     <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
-          <p className="text-sm text-secondary">Opérations commerciales</p>
+          <p className="text-sm text-secondary">{t("module.auto.operationsCommerciales")}</p>
           <h1 className="mt-1 flex items-center gap-2 text-3xl font-black text-on-surface">
             <Icon className="h-7 w-7 text-primary" />
             {module.title}
@@ -227,7 +233,7 @@ function OperationsModule({ kind }: { kind: ModuleKind }) {
       {error ? <div className="rounded-lg border border-error/30 bg-error-container px-3 py-2 text-xs text-error">{error}</div> : null}
 
       {loading ? (
-        <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-8 text-secondary">Chargement...</div>
+        <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-8 text-secondary">{t("module.auto.chargement")}</div>
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center text-secondary">
           Aucun élément pour le moment.
@@ -269,23 +275,23 @@ function OperationsModule({ kind }: { kind: ModuleKind }) {
               <h3 className="mt-1 text-xl font-black text-on-surface">{module.createLabel}</h3>
             </div>
             {kind !== "contracts" ? (
-              <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder="Titre / nom" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
+              <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder={t("module.auto.titreNom")} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
             ) : null}
-            <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder="Client ou audience" value={form.clientName} onChange={(event) => setForm({ ...form, clientName: event.target.value })} required />
+            <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder={t("module.auto.clientOuAudience")} value={form.clientName} onChange={(event) => setForm({ ...form, clientName: event.target.value })} required />
             {kind === "contracts" ? (
-              <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" type="number" placeholder="Montant" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required />
+              <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" type="number" placeholder={t("module.auto.montant")} value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} required />
             ) : null}
             {kind === "calls" ? (
-              <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder="Téléphone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+              <input className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder={t("module.auto.telephone")} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
             ) : null}
             <label className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm">
               <CalendarClock className="h-4 w-4 text-secondary" />
               <input className="flex-1 bg-transparent outline-none" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
             </label>
-            <textarea className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder="Notes" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+            <textarea className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm" placeholder={t("module.auto.notes")} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Annuler</Button>
-              <Button type="submit">Créer</Button>
+              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>{t("module.auto.annuler")}</Button>
+              <Button type="submit">{t("module.auto.creer")}</Button>
             </div>
           </form>
         </div>
@@ -295,6 +301,7 @@ function OperationsModule({ kind }: { kind: ModuleKind }) {
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
       <p className="text-xs text-secondary">{label}</p>
@@ -304,17 +311,21 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 export function ContractsView() {
+  const { t } = useTranslation();
   return <OperationsModule kind="contracts" />;
 }
 
 export function CasesView() {
+  const { t } = useTranslation();
   return <OperationsModule kind="cases" />;
 }
 
 export function CampaignsView() {
+  const { t } = useTranslation();
   return <OperationsModule kind="campaigns" />;
 }
 
 export function CallsView() {
+  const { t } = useTranslation();
   return <OperationsModule kind="calls" />;
 }

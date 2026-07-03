@@ -3,6 +3,7 @@ import { Check, CreditCard, Sparkles, Users } from "lucide-react";
 import { ApiError, getJson, patchJson, postJson } from "../lib/api";
 import { Button } from "../components/ui";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 import {
   PLAN_FEATURES,
   PLAN_LABELS,
@@ -22,6 +23,18 @@ const FEATURE_LABELS: Record<PlanFeature, string> = {
   advanced_reports: "Rapports avancés",
   automations: "Automatisations",
   unlimited_integrations: "Intégrations illimitées",
+  pricing_engine: "Moteur prix, remises & marge",
+  stock: "Stock & dépôts",
+  delivery: "Livraison & preuve de livraison",
+  payments_collections: "Paiement & recouvrement",
+  compliance_ma: "Conformité Maroc (ICE/IF/RC, facture)",
+  whatsapp_automation: "WhatsApp Business avancé",
+  voice_darija: "IA vocale Darija / Français",
+  pos_map: "Carte des points de vente",
+  smart_routes: "Tournées intelligentes",
+  trust_score: "Score de confiance client",
+  manager_copilot: "Manager Copilot",
+  benchmark: "Benchmark anonymisé",
 };
 
 const PLAN_ORDER: SubscriptionPlan[] = ["essentiel", "professionnel", "enterprise", "sur_mesure"];
@@ -41,6 +54,7 @@ type Billing = {
 };
 
 export function BillingView() {
+  const { t } = useTranslation();
   const { currentUser } = useWorkspace();
   const [billing, setBilling] = useState<Billing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +112,7 @@ export function BillingView() {
     }
   };
 
-  if (loading) return <div className="p-6 text-secondary">Chargement…</div>;
+  if (loading) return <div className="p-6 text-secondary">{t("billing.auto.chargement")}</div>;
   if (!billing) {
     return (
       <div className="p-6">
@@ -112,8 +126,8 @@ export function BillingView() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
       <div>
-        <p className="text-xs text-secondary">Plateforme</p>
-        <h1 className="text-3xl font-black text-on-surface">Abonnement</h1>
+        <p className="text-xs text-secondary">{t("billing.auto.plateforme")}</p>
+        <h1 className="text-3xl font-black text-on-surface">{t("billing.auto.abonnement")}</h1>
         <p className="mt-1 text-sm text-secondary">
           Gérez votre plan, vos sièges et les fonctions activées pour votre équipe.
         </p>
@@ -136,7 +150,7 @@ export function BillingView() {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-secondary">Sièges</p>
+            <p className="text-xs text-secondary">{t("billing.auto.sieges")}</p>
             <p className="text-2xl font-black text-on-surface">{billing.planSeats}</p>
           </div>
         </div>
@@ -144,7 +158,7 @@ export function BillingView() {
         {isAdmin ? (
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-secondary">Nombre de sièges</label>
+              <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("billing.auto.nombreDeSieges")}</label>
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-secondary" />
                 <input
@@ -156,16 +170,16 @@ export function BillingView() {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-secondary">Notes internes</label>
+              <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("billing.auto.notesInternes")}</label>
               <input
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="N° contrat, date renouvellement…"
+                placeholder={t("billing.auto.nContratDateRenouvellement")}
                 className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm"
               />
             </div>
             <div className="md:col-span-2 flex justify-end">
-              <Button size="sm" onClick={() => void saveSeatsAndNotes()}>Enregistrer</Button>
+              <Button size="sm" onClick={() => void saveSeatsAndNotes()}>{t("billing.auto.enregistrer")}</Button>
             </div>
           </div>
         ) : null}
@@ -173,7 +187,7 @@ export function BillingView() {
 
       {/* features included */}
       <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5">
-        <h3 className="text-sm font-bold text-on-surface">Fonctions incluses dans votre plan</h3>
+        <h3 className="text-sm font-bold text-on-surface">{t("billing.auto.fonctionsInclusesDansVotre")}</h3>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {(Object.keys(FEATURE_LABELS) as PlanFeature[]).map((f) => {
             const included = currentFeatures.includes(f);
@@ -194,9 +208,9 @@ export function BillingView() {
 
       {/* plan comparison + upgrade */}
       <div>
-        <h3 className="mb-3 text-sm font-bold text-on-surface">Changer de plan</h3>
+        <h3 className="mb-3 text-sm font-bold text-on-surface">{t("billing.auto.changerDePlan")}</h3>
         {!isAdmin ? (
-          <p className="text-xs text-secondary">Seuls les administrateurs peuvent modifier le plan.</p>
+          <p className="text-xs text-secondary">{t("billing.auto.seulsLesAdministrateursPeuvent")}</p>
         ) : null}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {PLAN_ORDER.map((p) => {
@@ -210,7 +224,7 @@ export function BillingView() {
               >
                 <div className="flex items-center justify-between">
                   <h4 className="text-base font-bold text-on-surface">{PLAN_LABELS[p]}</h4>
-                  {isCurrent ? <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-carbon">Actuel</span> : null}
+                  {isCurrent ? <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-carbon">{t("billing.auto.actuel")}</span> : null}
                 </div>
                 <p className="mt-1 text-xs text-secondary">{PLAN_PRICE[p]}</p>
                 <ul className="mt-3 space-y-1 text-xs">

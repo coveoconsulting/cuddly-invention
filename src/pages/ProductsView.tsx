@@ -9,6 +9,7 @@ import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Dialog";
 import { formatCurrency } from "../lib/labels";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 
 type ProductForm = {
   name: string;
@@ -47,6 +48,7 @@ function formFromProduct(product: Product): ProductForm {
 
 export function ProductsView() {
   const { company, can } = useWorkspace();
+  const { t } = useTranslation();
   const toast = useToast();
   const confirm = useConfirm();
   const [products, setProducts] = useState<Product[]>([]);
@@ -62,9 +64,9 @@ export function ProductsView() {
   const removeProduct = async (product: Product) => {
     if (busyId) return;
     const decision = await confirm({
-      title: `Supprimer ${product.name} ?`,
-      description: `Référence ${product.ref}. La référence ne pourra plus être utilisée dans de nouvelles commandes.`,
-      confirmLabel: "Supprimer",
+      title: t("products.deleteConfirmTitle", { name: product.name }),
+      description: t("products.deleteConfirmDesc", { ref: product.ref }),
+      confirmLabel: t("products.delete"),
       tone: "danger",
     });
     if (!decision.confirmed) return;
@@ -72,9 +74,9 @@ export function ProductsView() {
     setProducts((current) => current.filter((entry) => entry.id !== product.id));
     try {
       await requestJson(`/api/v1/products/${product.id}`, { method: "DELETE" });
-      toast.success(`${product.name} supprimé`);
+      toast.success(t("products.toast.deleted", { name: product.name }));
     } catch (reason) {
-      toast.error(reason instanceof ApiError ? reason.message : "Suppression impossible");
+      toast.error(reason instanceof ApiError ? reason.message : t("products.err.delete"));
       await loadProducts();
     } finally {
       setBusyId(null);
@@ -88,7 +90,7 @@ export function ProductsView() {
       setProducts(asArray<Product>(payload));
       setError("");
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Chargement impossible");
+      setError(reason instanceof ApiError ? reason.message : t("products.err.load"));
     } finally {
       setIsLoading(false);
     }
@@ -136,17 +138,17 @@ export function ProductsView() {
     try {
       if (editing) {
         await patchJson(`/api/v1/products/${editing.id}`, payload);
-        toast.success(`${payload.name} mis à jour`);
+        toast.success(t("products.toast.updated", { name: payload.name }));
       } else {
         await postJson("/api/v1/products", payload);
-        toast.success(`${payload.name} créé`);
+        toast.success(t("products.toast.created", { name: payload.name }));
       }
       setShowForm(false);
       setEditing(null);
       setForm(emptyForm);
       await loadProducts();
     } catch (reason) {
-      const message = reason instanceof ApiError ? reason.message : "Enregistrement impossible";
+      const message = reason instanceof ApiError ? reason.message : t("products.err.save");
       setError(message);
       toast.error(message);
     } finally {
@@ -162,13 +164,13 @@ export function ProductsView() {
     <div className="mx-auto max-w-[1440px] space-y-6 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm text-secondary">Catalogue, prix et disponibilite</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Produits et stocks</h1>
+          <p className="text-sm text-secondary">{t("products.eyebrow")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("products.title")}</h1>
         </div>
         {can("products.write") ? (
           <Button className="self-start gap-2" onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            Nouveau produit
+            {t("products.new")}
           </Button>
         ) : null}
       </div>
@@ -187,7 +189,7 @@ export function ProductsView() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="w-full rounded-xl border border-outline-variant bg-surface px-10 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            placeholder="Rechercher par produit, reference ou categorie"
+            placeholder={t("products.searchPh")}
           />
         </div>
       </div>
@@ -198,9 +200,9 @@ export function ProductsView() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="Aucun produit au catalogue"
-          description="Ajoutez des references pour suivre le stock, les disponibilites et les alertes de rupture."
-          action={can("products.write") ? <Button onClick={openCreate}>Ajouter un produit</Button> : undefined}
+          title={t("products.empty.title")}
+          description={t("products.empty.desc")}
+          action={can("products.write") ? <Button onClick={openCreate}>{t("products.empty.add")}</Button> : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -232,7 +234,7 @@ export function ProductsView() {
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-bold uppercase tracking-wider text-secondary">{product.ref}</p>
                       <Badge variant={product.status === "active" ? "success" : "neutral"}>
-                        {product.status === "active" ? "Actif" : "Inactif"}
+                        {product.status === "active" ? t("products.active") : t("products.inactive")}
                       </Badge>
                     </div>
                     <h2 className="mt-1 text-base font-bold text-on-surface">{product.name}</h2>
@@ -240,26 +242,26 @@ export function ProductsView() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-secondary">Prix</p>
+                      <p className="text-xs text-secondary">{t("products.price")}</p>
                       <p className="text-lg font-black text-on-surface">
                         {formatCurrency(product.price, company.currency)}
                       </p>
                     </div>
                     <div className="text-right">
                       <Badge variant={outOfStock ? "error" : lowStock ? "warning" : "success"}>
-                        {product.stock} unites
+                        {t("products.units", { count: product.stock })}
                       </Badge>
-                      <p className="mt-1 text-xs text-secondary">{product.category || "Sans categorie"}</p>
+                      <p className="mt-1 text-xs text-secondary">{product.category || t("products.noCategory")}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     {outOfStock || lowStock ? (
                       <div className="flex items-center gap-1.5 text-xs text-secondary">
                         <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                        {outOfStock ? "Rupture" : "Stock faible"}
+                        {outOfStock ? t("products.outOfStock") : t("products.lowStock")}
                       </div>
                     ) : (
-                      <div className="text-xs text-secondary">Stock sain</div>
+                      <div className="text-xs text-secondary">{t("products.healthyStock")}</div>
                     )}
                     <div className="flex items-center gap-1">
                       {can("products.delete") ? (
@@ -267,7 +269,7 @@ export function ProductsView() {
                           type="button"
                           onClick={() => void removeProduct(product)}
                           disabled={busyId === product.id}
-                          title="Supprimer"
+                          title={t("products.delete")}
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-white text-secondary transition-colors hover:border-error/30 hover:bg-error-container hover:text-error disabled:opacity-50"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -276,7 +278,7 @@ export function ProductsView() {
                       {can("products.write") ? (
                         <Button variant="outline" size="sm" onClick={() => openEdit(product)}>
                           <Pencil className="mr-1 h-3.5 w-3.5" />
-                          Modifier
+                          {t("products.edit")}
                         </Button>
                       ) : null}
                     </div>
@@ -296,29 +298,29 @@ export function ProductsView() {
           >
             <div>
               <p className="text-sm font-bold text-on-surface">
-                {editing ? "Modifier le produit" : "Nouveau produit"}
+                {editing ? t("products.form.editTitle") : t("products.form.newTitle")}
               </p>
               <p className="mt-1 text-xs text-secondary">
-                Catalogue persiste en Postgres et reutilisable dans les commandes.
+                {t("products.form.sub")}
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Nom du produit"
+                placeholder={t("products.form.namePh")}
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
                 required
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Reference"
+                placeholder={t("products.form.refPh")}
                 value={form.ref}
                 onChange={(event) => setForm({ ...form, ref: event.target.value })}
               />
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-                placeholder="Categorie"
+                placeholder={t("products.form.categoryPh")}
                 value={form.category}
                 onChange={(event) => setForm({ ...form, category: event.target.value })}
               />
@@ -327,15 +329,15 @@ export function ProductsView() {
                 value={form.status}
                 onChange={(event) => setForm({ ...form, status: event.target.value as Product["status"] })}
               >
-                <option value="active">Actif</option>
-                <option value="inactive">Inactif</option>
+                <option value="active">{t("products.active")}</option>
+                <option value="inactive">{t("products.inactive")}</option>
               </select>
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder="Prix"
+                placeholder={t("products.form.pricePh")}
                 value={form.price}
                 onChange={(event) => setForm({ ...form, price: event.target.value })}
                 required
@@ -344,7 +346,7 @@ export function ProductsView() {
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 type="number"
                 min="0"
-                placeholder="Stock"
+                placeholder={t("products.form.stockPh")}
                 value={form.stock}
                 onChange={(event) => setForm({ ...form, stock: event.target.value })}
                 required
@@ -352,22 +354,22 @@ export function ProductsView() {
             </div>
             <input
               className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="URL image"
+              placeholder={t("products.form.imagePh")}
               value={form.image}
               onChange={(event) => setForm({ ...form, image: event.target.value })}
             />
             <textarea
               className="min-h-24 w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="Description"
+              placeholder={t("products.form.descPh")}
               value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })}
             />
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
-                Annuler
+                {t("common.cancel")}
               </Button>
               <Button type="submit" loading={saving}>
-                Enregistrer
+                {t("common.save")}
               </Button>
             </div>
           </form>

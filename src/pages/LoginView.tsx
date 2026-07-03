@@ -5,10 +5,12 @@ import { Button } from "../components/ui";
 import { Logo } from "../components/Logo";
 import { ApiError, postJson } from "../lib/api";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 
 export function LoginView() {
   const navigate = useNavigate();
   const { signIn } = useWorkspace();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,7 +41,7 @@ export function LoginView() {
       await signIn(email, password);
       navigate("/dashboard", { replace: true });
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Connexion impossible");
+      setError(reason instanceof ApiError ? reason.message : t("login.err.signIn"));
     } finally {
       setIsSubmitting(false);
     }
@@ -53,7 +55,7 @@ export function LoginView() {
         {!chosen ? (
           <div className="w-full overflow-hidden rounded-lg border border-outline-variant bg-white shadow-lg">
             <div className="border-b border-outline-variant bg-surface-container-low px-6 py-4">
-              <h2 className="text-lg font-bold text-on-surface">Choisir un espace</h2>
+              <h2 className="text-lg font-bold text-on-surface">{t("login.chooseSpace")}</h2>
             </div>
             <div className="space-y-3 p-6">
               <button
@@ -61,49 +63,49 @@ export function LoginView() {
                 onClick={() => { window.location.href = CALL_CENTER_URL; }}
                 className="block w-full rounded-xl border border-outline-variant bg-surface px-5 py-4 text-left transition hover:border-primary hover:bg-primary/5"
               >
-                <span className="block text-base font-bold text-on-surface">Centre d'appel</span>
-                <span className="mt-0.5 block text-xs text-secondary">Prospection téléphonique · cc.coveoconsulting.com</span>
+                <span className="block text-base font-bold text-on-surface">{t("login.callCenter")}</span>
+                <span className="mt-0.5 block text-xs text-secondary">{t("login.callCenterSub")}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setChosen(true)}
                 className="block w-full rounded-xl border border-primary bg-primary/10 px-5 py-4 text-left transition hover:bg-primary/15"
               >
-                <span className="block text-base font-bold text-primary">Terrain</span>
-                <span className="mt-0.5 block text-xs text-secondary">Force de vente terrain · cet espace</span>
+                <span className="block text-base font-bold text-primary">{t("login.field")}</span>
+                <span className="mt-0.5 block text-xs text-secondary">{t("login.fieldSub")}</span>
               </button>
             </div>
           </div>
         ) : (
         <div className="w-full overflow-hidden rounded-lg border border-outline-variant bg-white shadow-lg">
           <div className="flex items-center justify-between border-b border-outline-variant bg-surface-container-low px-6 py-4">
-            <h2 className="text-lg font-bold text-on-surface">Connexion · Terrain</h2>
+            <h2 className="text-lg font-bold text-on-surface">{t("login.titleField")}</h2>
             <button type="button" onClick={() => setChosen(false)} className="text-xs font-semibold text-primary hover:underline">
-              Changer d'espace
+              {t("login.changeSpace")}
             </button>
           </div>
 
           <div className="space-y-6 p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-on-surface">Email</label>
+                <label className="mb-1.5 block text-sm font-semibold text-on-surface">{t("login.email")}</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  placeholder="nom@entreprise.com"
+                  placeholder={t("login.emailPh")}
                   required
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-on-surface">Mot de passe</label>
+                <label className="mb-1.5 block text-sm font-semibold text-on-surface">{t("login.password")}</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  placeholder="Votre mot de passe"
+                  placeholder={t("login.passwordPh")}
                   required
                 />
               </div>
@@ -116,7 +118,7 @@ export function LoginView() {
               ) : null}
 
               <Button type="submit" variant="primary" className="w-full justify-center" loading={isSubmitting}>
-                Se connecter
+                {t("login.signIn")}
               </Button>
 
               <button
@@ -128,7 +130,7 @@ export function LoginView() {
                 }}
                 className="block w-full text-center text-xs font-semibold text-primary hover:underline"
               >
-                Mot de passe oublié ?
+                {t("login.forgot")}
               </button>
             </form>
           </div>
@@ -143,16 +145,16 @@ export function LoginView() {
             className="w-full max-w-md space-y-4 rounded-2xl border border-outline-variant bg-white p-6 shadow-2xl"
           >
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-secondary">Réinitialisation</p>
-              <h3 className="mt-1 text-xl font-black text-on-surface">Mot de passe oublié</h3>
+              <p className="text-xs font-bold uppercase tracking-wider text-secondary">{t("login.reset.eyebrow")}</p>
+              <h3 className="mt-1 text-xl font-black text-on-surface">{t("login.reset.title")}</h3>
             </div>
             {forgotStatus === "sent" ? (
               <div className="space-y-3">
                 <p className="text-sm text-on-surface">
-                  Si un compte existe pour <strong>{forgotEmail}</strong>, un email contenant un lien de réinitialisation vient d'être envoyé. Vérifiez votre boîte (et vos spams).
+                  {t("login.reset.sent", { email: forgotEmail })}
                 </p>
                 <Button type="button" variant="outline" className="w-full justify-center" onClick={() => setShowForgot(false)}>
-                  Fermer
+                  {t("login.reset.close")}
                 </Button>
               </div>
             ) : (
@@ -162,15 +164,15 @@ export function LoginView() {
                   value={forgotEmail}
                   onChange={(event) => setForgotEmail(event.target.value)}
                   required
-                  placeholder="nom@entreprise.com"
+                  placeholder={t("login.emailPh")}
                   className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-sm"
                 />
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" className="flex-1 justify-center" onClick={() => setShowForgot(false)}>
-                    Annuler
+                    {t("common.cancel")}
                   </Button>
                   <Button type="submit" variant="primary" className="flex-1 justify-center" loading={forgotStatus === "sending"}>
-                    Envoyer le lien
+                    {t("login.reset.send")}
                   </Button>
                 </div>
               </>

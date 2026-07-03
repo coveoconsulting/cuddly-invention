@@ -6,6 +6,7 @@ import { Button } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Dialog";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -20,6 +21,7 @@ function normalizePreferences(payload: unknown): UserPreferences | null {
 }
 
 export function SettingsView() {
+  const { t } = useTranslation();
   const [profile, setProfile] = useState<UserSummary | null>(null);
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +74,7 @@ export function SettingsView() {
     return (
       <div className="p-6">
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-8 text-secondary">
-          Chargement des parametres...
+          {t("settings.loading")}
         </div>
       </div>
     );
@@ -81,15 +83,15 @@ export function SettingsView() {
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
       <div>
-        <p className="text-sm text-secondary">Profil et preferences</p>
-        <h1 className="text-3xl font-black text-on-surface mt-1">Parametres utilisateur</h1>
+        <p className="text-sm text-secondary">{t("settings.eyebrow")}</p>
+        <h1 className="text-3xl font-black text-on-surface mt-1">{t("settings.title")}</h1>
       </div>
 
       <form onSubmit={saveAll} className="space-y-6">
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <UserRound className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-on-surface">Profil</h2>
+            <h2 className="text-sm font-bold text-on-surface">{t("settings.profile.label")}</h2>
           </div>
           <AvatarUploader profile={profile} onUpdated={(p) => setProfile(p)} />
           <div className="grid md:grid-cols-2 gap-4">
@@ -102,26 +104,26 @@ export function SettingsView() {
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <BellRing className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-on-surface">Preferences</h2>
+            <h2 className="text-sm font-bold text-on-surface">{t("settings.preferences.label")}</h2>
           </div>
           <label className="flex items-center gap-3 text-sm text-on-surface">
             <input type="checkbox" checked={prefs.autoSync} onChange={() => setPrefs({ ...prefs, autoSync: !prefs.autoSync })} />
-            Synchroniser automatiquement les commandes confirmees
+            {t("settings.preferences.autoSync")}
           </label>
           <label className="flex items-center gap-3 text-sm text-on-surface">
             <input type="checkbox" checked={prefs.emailNotifications} onChange={() => setPrefs({ ...prefs, emailNotifications: !prefs.emailNotifications })} />
-            Recevoir les notifications par email
+            {t("settings.preferences.emailNotifications")}
           </label>
           <label className="flex items-center gap-3 text-sm text-on-surface">
             <input type="checkbox" checked={prefs.weeklyDigest} onChange={() => setPrefs({ ...prefs, weeklyDigest: !prefs.weeklyDigest })} />
-            Digest hebdomadaire
+            {t("settings.preferences.weeklyDigest")}
           </label>
         </div>
 
         <div className="flex justify-end">
           <Button type="submit" disabled={isSaving}>
             <Save className="w-4 h-4 mr-2" />
-            {isSaving ? "Enregistrement..." : "Sauvegarder"}
+            {isSaving ? t("settings.preferences.saving") : t("settings.preferences.save")}
           </Button>
         </div>
       </form>
@@ -133,6 +135,7 @@ export function SettingsView() {
 }
 
 function CrmSettingsCard() {
+  const { t } = useTranslation();
   const { can } = useWorkspace();
   const canEdit = can("settings.write");
   const [settings, setSettings] = useState<{
@@ -164,7 +167,7 @@ function CrmSettingsCard() {
     setMsg(null);
     try {
       await patchJson(`/api/v1/crm-settings`, settings);
-      setMsg("Enregistré");
+      setMsg(t("settings.crm.saved"));
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -174,60 +177,60 @@ function CrmSettingsCard() {
 
   return (
     <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm space-y-3">
-      <h2 className="text-sm font-bold text-on-surface">Paramètres devis &amp; CRM</h2>
+      <h2 className="text-sm font-bold text-on-surface">{t("settings.crm.label")}</h2>
       <p className="text-xs text-secondary">
-        Visibles dans les devis PDF et utilisés pour la numérotation et les emails.
+        {t("settings.crm.subtitle")}
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-[11px] font-semibold text-secondary">Préfixe numéro de devis</label>
+          <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.quotePrefix")}</label>
           <input className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.quoteNumberPrefix}
             onChange={(e) => setSettings({ ...settings, quoteNumberPrefix: e.target.value })} />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-semibold text-secondary">Validité (jours)</label>
+          <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.quoteValidity")}</label>
           <input type="number" className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.quoteValidityDays}
             onChange={(e) => setSettings({ ...settings, quoteValidityDays: Number(e.target.value) })} />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-semibold text-secondary">TVA par défaut (%)</label>
+          <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.defaultTax")}</label>
           <input type="number" step="0.01" className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.defaultTaxRate}
             onChange={(e) => setSettings({ ...settings, defaultTaxRate: Number(e.target.value) })} />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-semibold text-secondary">Compteur actuel (lecture seule)</label>
+          <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.quoteCounter")}</label>
           <input disabled className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm opacity-60" value={settings.quoteNumberCounter} />
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-[11px] font-semibold text-secondary">Conditions de paiement par défaut</label>
+        <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.paymentTerms")}</label>
         <textarea rows={2} className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.defaultPaymentTerms}
           onChange={(e) => setSettings({ ...settings, defaultPaymentTerms: e.target.value })} />
       </div>
       <div>
-        <label className="mb-1 block text-[11px] font-semibold text-secondary">Conditions générales par défaut</label>
+        <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.quoteTerms")}</label>
         <textarea rows={3} className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.defaultQuoteTerms}
           onChange={(e) => setSettings({ ...settings, defaultQuoteTerms: e.target.value })} />
       </div>
       <div>
-        <label className="mb-1 block text-[11px] font-semibold text-secondary">Mentions légales (pied de PDF)</label>
+        <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.legalMentions")}</label>
         <textarea rows={2} className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.legalMentions}
           onChange={(e) => setSettings({ ...settings, legalMentions: e.target.value })} />
       </div>
       <div>
-        <label className="mb-1 block text-[11px] font-semibold text-secondary">Sujet email d'envoi (variables : {"{{"}number{"}}"})</label>
+        <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.emailSubject")}</label>
         <input className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.quoteEmailSubject}
           onChange={(e) => setSettings({ ...settings, quoteEmailSubject: e.target.value })} />
       </div>
       <div>
-        <label className="mb-1 block text-[11px] font-semibold text-secondary">Corps email (variables : {"{{"}link{"}}"} {"{{"}number{"}}"})</label>
+        <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("settings.crm.emailBody")}</label>
         <textarea rows={4} className="w-full resize-none rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" value={settings.quoteEmailBody}
           onChange={(e) => setSettings({ ...settings, quoteEmailBody: e.target.value })} />
       </div>
       <div className="flex items-center justify-end gap-2">
         {msg ? <p className="text-xs text-secondary">{msg}</p> : null}
         <Button size="sm" onClick={() => void save()} loading={saving}>
-          <Save className="mr-1 h-3.5 w-3.5" /> Enregistrer
+          <Save className="mr-1 h-3.5 w-3.5" /> {t("settings.crm.save")}
         </Button>
       </div>
     </div>
@@ -235,6 +238,7 @@ function CrmSettingsCard() {
 }
 
 function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdated: (p: UserSummary) => void }) {
+  const { t } = useTranslation();
   const { refreshSession } = useWorkspace();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -245,10 +249,10 @@ function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdate
     setUploading(true);
     try {
       if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
-        throw new Error("Format accepté : PNG, JPEG ou WebP.");
+        throw new Error(t("settings.profile.invalidFormat"));
       }
       if (file.size > 5 * 1024 * 1024) {
-        throw new Error("Image trop lourde (max 5 Mo).");
+        throw new Error(t("settings.profile.imageTooBig"));
       }
       const res = await fetch(apiUrl(`/api/v1/settings/avatar`), {
         method: "POST",
@@ -257,8 +261,8 @@ function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdate
         body: file,
       });
       if (!res.ok) {
-        const t = await res.json().catch(() => ({}));
-        throw new Error((t as { error?: string }).error || `Upload échoué (${res.status})`);
+        const payload = await res.json().catch(() => ({}));
+        throw new Error((payload as { error?: string }).error || t("settings.profile.uploadFailed", { status: res.status }));
       }
       const updated = (await res.json()) as UserSummary;
       onUpdated(updated);
@@ -291,8 +295,8 @@ function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdate
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-on-surface">Photo de profil</p>
-        <p className="text-[11px] text-secondary">PNG, JPEG ou WebP — 5 Mo max. Remplace vos initiales partout dans l'app.</p>
+        <p className="text-sm font-bold text-on-surface">{t("settings.profile.avatar")}</p>
+        <p className="text-[11px] text-secondary">{t("settings.profile.avatarHint")}</p>
         {error ? <p className="mt-1 text-[11px] text-error">{error}</p> : null}
         <div className="mt-2 flex items-center gap-2">
           <button
@@ -301,7 +305,7 @@ function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdate
             disabled={uploading}
             className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1b4139] disabled:opacity-50"
           >
-            <Upload className="h-3.5 w-3.5" /> {uploading ? "Envoi…" : profile.avatarUrl ? "Changer" : "Téléverser"}
+            <Upload className="h-3.5 w-3.5" /> {uploading ? t("settings.profile.uploading") : profile.avatarUrl ? t("settings.profile.change") : t("settings.profile.upload")}
           </button>
           {profile.avatarUrl ? (
             <button
@@ -309,7 +313,7 @@ function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdate
               onClick={() => void remove()}
               className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant px-3 py-1.5 text-xs font-semibold text-secondary hover:text-error"
             >
-              <Trash2 className="h-3.5 w-3.5" /> Retirer
+              <Trash2 className="h-3.5 w-3.5" /> {t("settings.profile.remove")}
             </button>
           ) : null}
           <input
@@ -330,6 +334,7 @@ function AvatarUploader({ profile, onUpdated }: { profile: UserSummary; onUpdate
 }
 
 function PasswordChangeCard() {
+  const { t } = useTranslation();
   const toast = useToast();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -341,7 +346,7 @@ function PasswordChangeCard() {
     event.preventDefault();
     setError("");
     if (newPassword !== confirmation) {
-      setError("Les deux mots de passe ne correspondent pas.");
+      setError(t("settings.password.mismatch"));
       setStatus("error");
       return;
     }
@@ -352,10 +357,10 @@ function PasswordChangeCard() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmation("");
-      toast.success("Mot de passe mis à jour");
+      toast.success(t("settings.password.updated"));
     } catch (reason) {
       setStatus("error");
-      const message = reason instanceof ApiError ? reason.message : "Erreur lors du changement de mot de passe.";
+      const message = reason instanceof ApiError ? reason.message : t("settings.password.error");
       setError(message);
       toast.error(message);
     }
@@ -365,13 +370,13 @@ function PasswordChangeCard() {
     <form onSubmit={submit} className="space-y-4 rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
       <div className="flex items-center gap-2">
         <KeyRound className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-bold text-on-surface">Mot de passe</h2>
+        <h2 className="text-sm font-bold text-on-surface">{t("settings.password.label")}</h2>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <input
           type="password"
           className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-          placeholder="Mot de passe actuel"
+          placeholder={t("settings.password.current")}
           value={currentPassword}
           onChange={(event) => setCurrentPassword(event.target.value)}
           required
@@ -379,7 +384,7 @@ function PasswordChangeCard() {
         <input
           type="password"
           className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-          placeholder="Nouveau (min. 12 car.)"
+          placeholder={t("settings.password.new")}
           minLength={12}
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
@@ -388,7 +393,7 @@ function PasswordChangeCard() {
         <input
           type="password"
           className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-          placeholder="Confirmer"
+          placeholder={t("settings.password.confirm")}
           minLength={12}
           value={confirmation}
           onChange={(event) => setConfirmation(event.target.value)}
@@ -396,14 +401,14 @@ function PasswordChangeCard() {
         />
       </div>
       {status === "ok" ? (
-        <p className="text-xs text-primary">Mot de passe mis a jour.</p>
+        <p className="text-xs text-primary">{t("settings.password.updatedInline")}</p>
       ) : null}
       {status === "error" && error ? (
         <p className="text-xs text-error">{error}</p>
       ) : null}
       <div className="flex justify-end">
         <Button type="submit" variant="outline" loading={status === "saving"}>
-          Changer le mot de passe
+          {t("settings.password.change")}
         </Button>
       </div>
     </form>

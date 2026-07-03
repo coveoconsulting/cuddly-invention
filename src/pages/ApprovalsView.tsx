@@ -11,7 +11,9 @@ import { useConfirm } from "../components/Dialog";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { formatCurrency, formatDateTime } from "../lib/labels";
 
+import { useTranslation } from "../i18n";
 export function ApprovalsView() {
+  const { t } = useTranslation();
   const { company, can } = useWorkspace();
   const toast = useToast();
   const confirm = useConfirm();
@@ -90,7 +92,7 @@ export function ApprovalsView() {
   if (!can("approvals.write")) {
     return (
       <div className="p-6">
-        <p className="text-sm text-secondary">Accès réservé aux valideurs.</p>
+        <p className="text-sm text-secondary">{t("approvals.auto.accesReserveAuxValideurs")}</p>
       </div>
     );
   }
@@ -98,9 +100,9 @@ export function ApprovalsView() {
   return (
     <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
       <div>
-        <p className="text-sm text-secondary">Workflow</p>
-        <h1 className="mt-1 text-3xl font-black text-on-surface">Approbations</h1>
-        <p className="mt-1 text-sm text-secondary">Commandes et remises en attente de validation.</p>
+        <p className="text-sm text-secondary">{t("approvals.auto.workflow")}</p>
+        <h1 className="mt-1 text-3xl font-black text-on-surface">{t("approvals.auto.approbations")}</h1>
+        <p className="mt-1 text-sm text-secondary">{t("approvals.auto.commandesEtRemisesEn")}</p>
       </div>
 
       {error ? (
@@ -117,7 +119,7 @@ export function ApprovalsView() {
         </div>
       ) : orders.length === 0 ? (
         <EmptyState
-          title="Aucune validation en attente"
+          title={t("approvals.auto.aucuneValidationEnAttente")}
           description="Toutes les commandes sensibles ont été traitées."
         />
       ) : (

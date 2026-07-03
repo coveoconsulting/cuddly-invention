@@ -6,9 +6,11 @@ import { Button } from "../components/ui";
 import { SignaturePad } from "../components/SignaturePad";
 import type { Quote } from "../types";
 
+import { useTranslation } from "../i18n";
 type PublicAttachment = { id: string; name: string; blobUrl: string; sizeBytes: number; contentType: string };
 
 export function QuoteSignatureView() {
+  const { t } = useTranslation();
   const { id, token } = useParams<{ id: string; token: string }>();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [attachments, setAttachments] = useState<PublicAttachment[]>([]);
@@ -66,13 +68,13 @@ export function QuoteSignatureView() {
     }
   };
 
-  if (loading) return <div className="p-10 text-center text-secondary">Chargement…</div>;
+  if (loading) return <div className="p-10 text-center text-secondary">{t("quoteSignature.auto.chargement")}</div>;
 
   if (error && !quote) {
     return (
       <div className="mx-auto max-w-md p-10 text-center">
         <X className="mx-auto mb-3 h-12 w-12 text-error" />
-        <p className="text-lg font-bold text-on-surface">Lien invalide ou expiré</p>
+        <p className="text-lg font-bold text-on-surface">{t("quoteSignature.auto.lienInvalideOuExpire")}</p>
         <p className="mt-2 text-sm text-secondary">{error}</p>
       </div>
     );
@@ -84,7 +86,7 @@ export function QuoteSignatureView() {
     return (
       <div className="mx-auto max-w-lg p-10 text-center">
         <CheckCircle2 className="mx-auto mb-3 h-14 w-14 text-primary" />
-        <h1 className="text-2xl font-black text-on-surface">Merci !</h1>
+        <h1 className="text-2xl font-black text-on-surface">{t("quoteSignature.auto.merci")}</h1>
         <p className="mt-2 text-sm text-secondary">
           {quote.status === "signed" || success
             ? "Le devis a bien été signé. Une copie vous sera envoyée par email."
@@ -107,7 +109,7 @@ export function QuoteSignatureView() {
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs text-secondary">Devis</p>
+              <p className="text-xs text-secondary">{t("quoteSignature.auto.devis")}</p>
               <h1 className="text-2xl font-black">{quote.title || quote.number}</h1>
               <p className="text-sm text-secondary">N° {quote.number}</p>
             </div>
@@ -120,9 +122,9 @@ export function QuoteSignatureView() {
             </a>
           </div>
           <div className="mt-3 text-sm text-secondary">
-            <p>Adressé à : <strong className="text-on-surface">{quote.clientName}</strong></p>
+            <p>{t("quoteSignature.auto.adresseA")} <strong className="text-on-surface">{quote.clientName}</strong></p>
             {quote.clientAddress ? <p>{quote.clientAddress}</p> : null}
-            {quote.expiresAt ? <p>Valable jusqu'au : <strong className="text-on-surface">{new Date(quote.expiresAt).toLocaleDateString("fr-FR")}</strong></p> : null}
+            {quote.expiresAt ? <p>{t("quoteSignature.auto.valableJusquau")} <strong className="text-on-surface">{new Date(quote.expiresAt).toLocaleDateString("fr-FR")}</strong></p> : null}
           </div>
         </div>
 
@@ -130,11 +132,11 @@ export function QuoteSignatureView() {
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-secondary">
               <tr>
-                <th className="px-2 py-2 text-left">Description</th>
-                <th className="px-2 py-2 text-right">Qté</th>
-                <th className="px-2 py-2 text-right">PU</th>
-                <th className="px-2 py-2 text-right">Rem%</th>
-                <th className="px-2 py-2 text-right">Total</th>
+                <th className="px-2 py-2 text-left">{t("quoteSignature.auto.description")}</th>
+                <th className="px-2 py-2 text-right">{t("quoteSignature.auto.qte")}</th>
+                <th className="px-2 py-2 text-right">{t("quoteSignature.auto.pu")}</th>
+                <th className="px-2 py-2 text-right">{t("quoteSignature.auto.rem")}</th>
+                <th className="px-2 py-2 text-right">{t("quoteSignature.auto.total")}</th>
               </tr>
             </thead>
             <tbody>
@@ -150,7 +152,7 @@ export function QuoteSignatureView() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-outline-variant">
-                <td colSpan={4} className="px-2 py-2 text-right text-sm">Sous-total</td>
+                <td colSpan={4} className="px-2 py-2 text-right text-sm">{t("quoteSignature.auto.sousTotal")}</td>
                 <td className="px-2 py-2 text-right text-sm">{quote.subtotal.toFixed(2)} {quote.currency}</td>
               </tr>
               <tr>
@@ -158,13 +160,13 @@ export function QuoteSignatureView() {
                 <td className="px-2 py-1 text-right text-xs">{quote.taxAmount.toFixed(2)} {quote.currency}</td>
               </tr>
               <tr className="text-base font-black">
-                <td colSpan={4} className="px-2 py-2 text-right">TOTAL</td>
+                <td colSpan={4} className="px-2 py-2 text-right">{t("quoteSignature.auto.total2")}</td>
                 <td className="px-2 py-2 text-right">{quote.total.toFixed(2)} {quote.currency}</td>
               </tr>
             </tfoot>
           </table>
-          {quote.paymentTerms ? <p className="mt-3 text-xs text-secondary"><strong>Paiement :</strong> {quote.paymentTerms}</p> : null}
-          {quote.terms ? <p className="mt-1 text-xs text-secondary"><strong>Conditions :</strong> {quote.terms}</p> : null}
+          {quote.paymentTerms ? <p className="mt-3 text-xs text-secondary"><strong>{t("quoteSignature.auto.paiement")}</strong> {quote.paymentTerms}</p> : null}
+          {quote.terms ? <p className="mt-1 text-xs text-secondary"><strong>{t("quoteSignature.auto.conditions")}</strong> {quote.terms}</p> : null}
         </div>
 
         {attachments.length > 0 ? (
@@ -186,27 +188,27 @@ export function QuoteSignatureView() {
         ) : null}
 
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
-          <h2 className="text-base font-bold">Signer le devis</h2>
+          <h2 className="text-base font-bold">{t("quoteSignature.auto.signerLeDevis")}</h2>
           <p className="mt-1 text-xs text-secondary">
             En signant ci-dessous, vous acceptez le devis et ses conditions. Une commande sera créée automatiquement.
           </p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-secondary">Nom et prénom *</label>
+              <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("quoteSignature.auto.nomEtPrenom")}</label>
               <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary" />
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-secondary">Email (optionnel)</label>
+              <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("quoteSignature.auto.emailOptionnel")}</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm outline-none focus:border-primary" />
             </div>
           </div>
           <div className="mt-3">
-            <label className="mb-1 block text-[11px] font-semibold text-secondary">Signature *</label>
+            <label className="mb-1 block text-[11px] font-semibold text-secondary">{t("quoteSignature.auto.signature")}</label>
             <SignaturePad onChange={setSignature} />
           </div>
           <label className="mt-3 flex items-start gap-2 text-xs text-secondary">
             <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5" />
-            <span>J'ai lu et j'accepte le devis et les conditions générales associées.</span>
+            <span>{t("quoteSignature.auto.jaiLuEtJaccepte")}</span>
           </label>
           {error ? <p className="mt-2 text-xs text-error">{error}</p> : null}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -227,16 +229,16 @@ export function QuoteSignatureView() {
       {refusing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-surface-container-lowest p-5">
-            <h3 className="text-base font-bold">Refuser le devis</h3>
-            <p className="mt-1 text-xs text-secondary">Vous pouvez préciser une raison (optionnel) :</p>
+            <h3 className="text-base font-bold">{t("quoteSignature.auto.refuserLeDevis")}</h3>
+            <p className="mt-1 text-xs text-secondary">{t("quoteSignature.auto.vousPouvezPreciserUne")}</p>
             <textarea id="refuseReason" rows={3} className="mt-2 w-full rounded-lg border border-outline-variant bg-surface px-3 py-2 text-sm" />
             <div className="mt-3 flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setRefusing(false)}>Annuler</Button>
+              <Button variant="ghost" size="sm" onClick={() => setRefusing(false)}>{t("quoteSignature.auto.annuler")}</Button>
               <Button size="sm" onClick={() => {
                 const v = (document.getElementById("refuseReason") as HTMLTextAreaElement | null)?.value ?? "";
                 setRefusing(false);
                 void refuse(v);
-              }}>Confirmer le refus</Button>
+              }}>{t("quoteSignature.auto.confirmerLeRefus")}</Button>
             </div>
           </div>
         </div>

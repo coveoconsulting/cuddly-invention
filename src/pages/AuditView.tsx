@@ -6,6 +6,7 @@ import { Skeleton } from "../components/Skeleton";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { formatDateTime } from "../lib/labels";
 
+import { useTranslation } from "../i18n";
 type AuditLogEntry = {
   id: string;
   actorUserId: string;
@@ -18,6 +19,7 @@ type AuditLogEntry = {
 };
 
 export function AuditView() {
+  const { t } = useTranslation();
   const { can } = useWorkspace();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,7 +52,7 @@ export function AuditView() {
   if (!can("audit.read")) {
     return (
       <div className="p-6">
-        <p className="text-sm text-secondary">Acces reserve aux administrateurs.</p>
+        <p className="text-sm text-secondary">{t("audit.auto.accesReserveAuxAdministrateurs")}</p>
       </div>
     );
   }
@@ -58,8 +60,8 @@ export function AuditView() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
       <div>
-        <p className="text-sm text-secondary">Journal d'activite</p>
-        <h1 className="mt-1 text-3xl font-black text-on-surface">Audit logs</h1>
+        <p className="text-sm text-secondary">{t("audit.auto.journalDactivite")}</p>
+        <h1 className="mt-1 text-3xl font-black text-on-surface">{t("audit.auto.auditLogs")}</h1>
       </div>
 
       {isLoading ? (

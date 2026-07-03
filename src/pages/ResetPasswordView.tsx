@@ -4,7 +4,9 @@ import { KeyRound } from "lucide-react";
 import { Button } from "../components/ui";
 import { ApiError, postJson } from "../lib/api";
 
+import { useTranslation } from "../i18n";
 export function ResetPasswordView() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -17,7 +19,7 @@ export function ResetPasswordView() {
     return (
       <div className="min-h-screen bg-surface px-4 py-10">
         <div className="mx-auto max-w-md rounded-2xl border border-outline-variant bg-white p-8 text-center shadow-lg">
-          <h2 className="text-xl font-black text-on-surface">Lien invalide</h2>
+          <h2 className="text-xl font-black text-on-surface">{t("resetPassword.auto.lienInvalide")}</h2>
           <p className="mt-2 text-sm text-secondary">
             Aucun jeton de réinitialisation fourni. Demandez un nouveau lien depuis la page de connexion.
           </p>
@@ -53,9 +55,9 @@ export function ResetPasswordView() {
       <form onSubmit={submit} className="mx-auto max-w-md space-y-5 rounded-2xl border border-outline-variant bg-white p-8 shadow-lg">
         <div className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-black text-on-surface">Nouveau mot de passe</h2>
+          <h2 className="text-xl font-black text-on-surface">{t("resetPassword.auto.nouveauMotDePasse")}</h2>
         </div>
-        <p className="text-sm text-secondary">Choisissez un mot de passe d'au moins 12 caractères.</p>
+        <p className="text-sm text-secondary">{t("resetPassword.auto.choisissezUnMotDe")}</p>
 
         {status === "ok" ? (
           <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
@@ -69,7 +71,7 @@ export function ResetPasswordView() {
               required
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Nouveau mot de passe"
+              placeholder={t("resetPassword.auto.nouveauMotDePasse")}
               className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-sm"
             />
             <input
@@ -78,7 +80,7 @@ export function ResetPasswordView() {
               required
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
-              placeholder="Confirmer"
+              placeholder={t("resetPassword.auto.confirmer")}
               className="w-full rounded-lg border border-outline-variant bg-surface px-4 py-3 text-sm"
             />
             {error ? <p className="text-xs text-error">{error}</p> : null}

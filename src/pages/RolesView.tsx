@@ -8,6 +8,7 @@ import { useToast } from "../components/Toast";
 import { useConfirm } from "../components/Dialog";
 import { useWorkspace } from "../context/WorkspaceContext";
 
+import { useTranslation } from "../i18n";
 const emptyRolesResponse: RolesResponse = {
   roles: [],
   users: [],
@@ -16,6 +17,7 @@ const emptyRolesResponse: RolesResponse = {
 };
 
 function normalizeRolesResponse(payload: unknown): RolesResponse {
+  const { t } = useTranslation();
   if (!payload || typeof payload !== "object") {
     return emptyRolesResponse;
   }
@@ -29,6 +31,7 @@ function normalizeRolesResponse(payload: unknown): RolesResponse {
 }
 
 export function RolesView() {
+  const { t } = useTranslation();
   const { can, currentUser } = useWorkspace();
   const toast = useToast();
   const confirm = useConfirm();
@@ -108,15 +111,15 @@ export function RolesView() {
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <p className="text-sm text-secondary">Securite applicative</p>
-        <h1 className="text-3xl font-black text-on-surface mt-1">Roles et permissions</h1>
+        <p className="text-sm text-secondary">{t("roles.auto.securiteApplicative")}</p>
+        <h1 className="text-3xl font-black text-on-surface mt-1">{t("roles.auto.rolesEtPermissions")}</h1>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.9fr] gap-6">
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-on-surface">Definitions de roles</h2>
+            <h2 className="text-sm font-bold text-on-surface">{t("roles.auto.definitionsDeRoles")}</h2>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             {payload.roles.map((role) => (
@@ -143,7 +146,7 @@ export function RolesView() {
           <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <UsersRound className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-bold text-on-surface">Utilisateurs visibles</h2>
+              <h2 className="text-sm font-bold text-on-surface">{t("roles.auto.utilisateursVisibles")}</h2>
             </div>
             {actionError ? (
               <p className="mb-3 text-xs text-error">{actionError}</p>
@@ -156,7 +159,7 @@ export function RolesView() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-on-surface truncate">{user.name}</p>
-                        {!user.active ? <Badge variant="warning">Désactivé</Badge> : null}
+                        {!user.active ? <Badge variant="warning">{t("roles.auto.desactive")}</Badge> : null}
                       </div>
                       <p className="text-xs text-secondary mt-1 truncate">{user.email}</p>
                     </div>
@@ -178,7 +181,7 @@ export function RolesView() {
                             onClick={() => void removeUser(user)}
                             disabled={busyId === user.id || user.role === "super_admin"}
                             className="flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant bg-white hover:bg-surface disabled:opacity-50"
-                            title="Supprimer"
+                            title={t("roles.auto.supprimer")}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-secondary" />
                           </button>
@@ -196,7 +199,7 @@ export function RolesView() {
           <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <KeySquare className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-bold text-on-surface">Permissions effectives</h2>
+              <h2 className="text-sm font-bold text-on-surface">{t("roles.auto.permissionsEffectives")}</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               {payload.currentPermissions.map((permission) => (
@@ -217,6 +220,7 @@ function CreateUserCard({
   roles: Array<{ key: RoleKey; label: string }>;
   onCreated: () => void;
 }) {
+  const { t } = useTranslation();
   const { can } = useWorkspace();
   const toast = useToast();
   const [name, setName] = useState("");
@@ -255,12 +259,12 @@ function CreateUserCard({
     <form onSubmit={submit} className="space-y-4 rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
       <div className="flex items-center gap-2">
         <UserPlus className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-bold text-on-surface">Inviter un utilisateur</h2>
+        <h2 className="text-sm font-bold text-on-surface">{t("roles.auto.inviterUnUtilisateur")}</h2>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <input
           className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-          placeholder="Nom complet"
+          placeholder={t("roles.auto.nomComplet")}
           value={name}
           onChange={(event) => setName(event.target.value)}
           required
@@ -268,7 +272,7 @@ function CreateUserCard({
         <input
           type="email"
           className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-          placeholder="email@entreprise.com"
+          placeholder={t("roles.auto.emailEntrepriseCom")}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
@@ -276,7 +280,7 @@ function CreateUserCard({
         <input
           type="password"
           className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-          placeholder="Mot de passe initial (min. 12 car.)"
+          placeholder={t("roles.auto.motDePasseInitial")}
           minLength={12}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -294,7 +298,7 @@ function CreateUserCard({
           ))}
         </select>
       </div>
-      {status === "ok" ? <p className="text-xs text-primary">Utilisateur cree.</p> : null}
+      {status === "ok" ? <p className="text-xs text-primary">{t("roles.auto.utilisateurCree")}</p> : null}
       {status === "error" && error ? <p className="text-xs text-error">{error}</p> : null}
       <div className="flex justify-end">
         <Button type="submit" loading={status === "saving"}>

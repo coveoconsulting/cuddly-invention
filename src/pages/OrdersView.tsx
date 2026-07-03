@@ -10,14 +10,12 @@ import { useConfirm } from "../components/Dialog";
 import { useToast } from "../components/Toast";
 import { EmptyState } from "../components/EmptyState";
 import {
-  approvalStatusLabel,
   approvalTone,
   formatCurrency,
-  orderStatusLabel,
   orderStatusTone,
-  syncStatusLabel,
 } from "../lib/labels";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 
 type StatusFilter = "all" | OrderStatus;
 type OrderLineForm = {
@@ -47,6 +45,7 @@ function lineTotal(line: OrderLine | OrderLineForm) {
 
 export function OrdersView() {
   const { company, can } = useWorkspace();
+  const { t } = useTranslation();
   const confirm = useConfirm();
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -130,7 +129,7 @@ export function OrdersView() {
       return isEmptyFirst ? [line] : [...current, line];
     });
     toast[product ? "success" : "info"](
-      product ? `Ajouté : ${product.name}` : `Code ${code} — produit inconnu, ligne libre créée`,
+      product ? t("orders.scan.added", { name: product.name }) : t("orders.scan.unknown", { code }),
     );
   };
 
@@ -190,10 +189,10 @@ export function OrdersView() {
       };
       if (editingOrder) {
         await patchJson(`/api/v1/orders/${editingOrder.id}`, payload);
-        toast.success("Commande mise a jour");
+        toast.success(t("orders.toast.updated"));
       } else {
         await postJson("/api/v1/orders", payload);
-        toast.success("Commande creee");
+        toast.success(t("orders.toast.created"));
       }
       setShowCreate(false);
       resetCreateForm();
@@ -205,14 +204,14 @@ export function OrdersView() {
 
   const deleteOrder = async (order: Order) => {
     const decision = await confirm({
-      title: `Supprimer ${order.id} ?`,
-      description: "La commande et ses lignes seront supprimees definitivement.",
-      confirmLabel: "Supprimer",
+      title: t("orders.deleteConfirmTitle", { id: order.id }),
+      description: t("orders.deleteConfirmDesc"),
+      confirmLabel: t("orders.delete"),
       tone: "danger",
     });
     if (!decision.confirmed) return;
     await requestJson(`/api/v1/orders/${order.id}`, { method: "DELETE" });
-    toast.success("Commande supprimee");
+    toast.success(t("orders.toast.deleted"));
     await loadOrders();
   };
 
@@ -232,8 +231,8 @@ export function OrdersView() {
     <div className="mx-auto max-w-[1440px] space-y-6 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm text-secondary">Commandes, lignes produit et validations</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Flux de commandes</h1>
+          <p className="text-sm text-secondary">{t("orders.eyebrow")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("orders.title")}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -243,27 +242,27 @@ export function OrdersView() {
               downloadCsv(
                 "commandes",
                 buildCsv(filteredOrders, [
-                  { label: "ID", value: (o) => o.id },
-                  { label: "Date", value: (o) => o.date },
-                  { label: "Client", value: (o) => o.clientName },
-                  { label: "Propriétaire", value: (o) => o.ownerName },
-                  { label: "Territoire", value: (o) => o.territoryLabel },
-                  { label: "Montant", value: (o) => o.amount },
-                  { label: "Remise %", value: (o) => o.discount },
-                  { label: "Statut", value: (o) => o.status },
-                  { label: "Validation", value: (o) => o.approvalStatus },
-                  { label: "Sync", value: (o) => o.syncStatus },
+                  { label: t("orders.csv.id"), value: (o) => o.id },
+                  { label: t("orders.csv.date"), value: (o) => o.date },
+                  { label: t("orders.csv.client"), value: (o) => o.clientName },
+                  { label: t("orders.csv.owner"), value: (o) => o.ownerName },
+                  { label: t("orders.csv.territory"), value: (o) => o.territoryLabel },
+                  { label: t("orders.csv.amount"), value: (o) => o.amount },
+                  { label: t("orders.csv.discount"), value: (o) => o.discount },
+                  { label: t("orders.csv.status"), value: (o) => o.status },
+                  { label: t("orders.csv.approval"), value: (o) => o.approvalStatus },
+                  { label: t("orders.csv.sync"), value: (o) => o.syncStatus },
                 ]),
               )
             }
           >
             <Download className="h-4 w-4" />
-            Exporter CSV
+            {t("orders.exportCsv")}
           </Button>
           {can("orders.write") ? (
             <Button className="self-start gap-2" onClick={openCreate}>
               <Plus className="h-4 w-4" />
-              Nouvelle commande
+              {t("orders.new")}
             </Button>
           ) : null}
         </div>
@@ -271,11 +270,11 @@ export function OrdersView() {
 
       <div className="flex flex-wrap gap-2">
         {[
-          { key: "all", label: "Toutes" },
-          { key: "draft", label: "Brouillons" },
-          { key: "awaiting_approval", label: "Validation requise" },
-          { key: "confirmed", label: "Confirmees" },
-          { key: "delivered", label: "Livrees" },
+          { key: "all", label: t("orders.filter.all") },
+          { key: "draft", label: t("orders.filter.draft") },
+          { key: "awaiting_approval", label: t("orders.filter.awaiting") },
+          { key: "confirmed", label: t("orders.filter.confirmed") },
+          { key: "delivered", label: t("orders.filter.delivered") },
         ].map((item) => (
           <button
             key={item.key}
@@ -296,8 +295,8 @@ export function OrdersView() {
         <SkeletonGrid count={6} />
       ) : filteredOrders.length === 0 ? (
         <EmptyState
-          title="Aucune commande enregistree"
-          description="Les flux de commande, validations et synchronisations apparaitront ici des la premiere saisie."
+          title={t("orders.empty.title")}
+          description={t("orders.empty.desc")}
           action={
             can("orders.write") ? (
               <Button className="gap-2" onClick={openCreate}>
@@ -319,31 +318,31 @@ export function OrdersView() {
                   <p className="text-lg font-black text-on-surface">{order.id}</p>
                   <p className="mt-1 text-sm text-secondary">{order.clientName}</p>
                 </div>
-                <Badge variant={orderStatusTone(order.status)}>{orderStatusLabel[order.status]}</Badge>
+                <Badge variant={orderStatusTone(order.status)}>{t(`enum.orderStatus.${order.status}`)}</Badge>
               </div>
               <div className="space-y-2 text-sm text-secondary">
                 <div className="flex justify-between">
-                  <span>Montant</span>
+                  <span>{t("orders.amount")}</span>
                   <span className="font-bold text-on-surface">
                     {formatCurrency(order.amount, company.currency)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Remise validation</span>
+                  <span>{t("orders.discountValidation")}</span>
                   <span>{order.discount}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Responsable</span>
+                  <span>{t("orders.owner")}</span>
                   <span>{order.ownerName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Territoire</span>
+                  <span>{t("orders.territory")}</span>
                   <span>{order.territoryLabel}</span>
                 </div>
               </div>
               {order.lines?.length ? (
                 <div className="rounded-xl border border-outline-variant bg-surface p-3">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-secondary">Lignes</p>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-secondary">{t("orders.lines")}</p>
                   <div className="space-y-1">
                     {order.lines.map((line) => (
                       <div key={line.id} className="flex justify-between gap-3 text-xs text-secondary">
@@ -360,11 +359,11 @@ export function OrdersView() {
               ) : null}
               <div className="flex flex-wrap gap-2">
                 <Badge variant={approvalTone(order.approvalStatus)}>
-                  {approvalStatusLabel[order.approvalStatus]}
+                  {t(`enum.approvalStatus.${order.approvalStatus}`)}
                 </Badge>
-                <Badge variant="neutral">{syncStatusLabel[order.syncStatus]}</Badge>
+                <Badge variant="neutral">{t(`enum.syncStatus.${order.syncStatus}`)}</Badge>
               </div>
-              <p className="min-h-10 text-xs text-secondary">{order.notes || "Aucune note."}</p>
+              <p className="min-h-10 text-xs text-secondary">{order.notes || t("orders.noNote")}</p>
               {can("orders.approve") && order.approvalStatus === "pending" ? (
                 <Button
                   variant="outline"
@@ -372,19 +371,19 @@ export function OrdersView() {
                   onClick={() => void handleApprove(order)}
                 >
                   <CircleCheckBig className="mr-2 h-4 w-4" />
-                  Approuver et confirmer
+                  {t("orders.approveConfirm")}
                 </Button>
               ) : null}
               {can("orders.write") && (order.status === "draft" || order.status === "awaiting_approval") ? (
                 <Button variant="outline" className="w-full" onClick={() => openEdit(order)}>
                   <Pencil className="mr-2 h-4 w-4" />
-                  Modifier le brouillon
+                  {t("orders.editDraft")}
                 </Button>
               ) : null}
               {can("orders.delete") && (order.status === "draft" || order.status === "cancelled") ? (
                 <Button variant="ghost" className="w-full text-error" onClick={() => void deleteOrder(order)}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Supprimer
+                  {t("orders.delete")}
                 </Button>
               ) : null}
               <a
@@ -393,7 +392,7 @@ export function OrdersView() {
                 rel="noreferrer"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-outline-variant bg-white px-4 py-2 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container"
               >
-                Telecharger PDF
+                {t("orders.downloadPdf")}
               </a>
             </div>
           ))}
@@ -408,15 +407,15 @@ export function OrdersView() {
           >
             <div>
               <p className="text-sm font-bold text-on-surface">
-                {editingOrder ? `Modifier ${editingOrder.id}` : "Nouvelle commande"}
+                {editingOrder ? t("orders.form.editTitle", { id: editingOrder.id }) : t("orders.form.newTitle")}
               </p>
               <p className="mt-1 text-xs text-secondary">
-                Les lignes produit alimentent le montant, les validations et le PDF.
+                {t("orders.form.sub")}
               </p>
             </div>
             <input
               className="w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="Client"
+              placeholder={t("orders.form.clientPh")}
               value={form.clientName}
               onChange={(event) => setForm({ ...form, clientName: event.target.value })}
               required
@@ -425,17 +424,17 @@ export function OrdersView() {
             <div className="rounded-2xl border border-outline-variant bg-surface p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-bold text-on-surface">Articles</p>
-                  <p className="text-xs text-secondary">Selectionnez un produit ou saisissez une ligne libre.</p>
+                  <p className="text-sm font-bold text-on-surface">{t("orders.form.articles")}</p>
+                  <p className="text-xs text-secondary">{t("orders.form.articlesSub")}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => void scanAndAddLine()}>
                     <ScanLine className="mr-1 h-3.5 w-3.5" />
-                    Scanner
+                    {t("orders.form.scan")}
                   </Button>
                   <Button type="button" variant="outline" size="sm" onClick={() => setLines((current) => [...current, emptyLine()])}>
                     <PackagePlus className="mr-1 h-3.5 w-3.5" />
-                    Ajouter
+                    {t("orders.form.add")}
                   </Button>
                 </div>
               </div>
@@ -447,7 +446,7 @@ export function OrdersView() {
                       value={line.productId}
                       onChange={(event) => updateLine(line.localId, { productId: event.target.value })}
                     >
-                      <option value="">Ligne libre</option>
+                      <option value="">{t("orders.form.freeLine")}</option>
                       {products.map((product) => (
                         <option key={product.id} value={product.id}>
                           {product.ref} - {product.name}
@@ -456,7 +455,7 @@ export function OrdersView() {
                     </select>
                     <input
                       className="rounded-lg border border-outline-variant bg-surface px-3 py-2 text-xs"
-                      placeholder="Libelle"
+                      placeholder={t("orders.form.labelPh")}
                       value={line.productName}
                       onChange={(event) => updateLine(line.localId, { productName: event.target.value })}
                     />
@@ -465,7 +464,7 @@ export function OrdersView() {
                       type="number"
                       min="0.001"
                       step="0.001"
-                      placeholder="Qte"
+                      placeholder={t("orders.form.qtyPh")}
                       value={line.quantity}
                       onChange={(event) => updateLine(line.localId, { quantity: event.target.value })}
                     />
@@ -474,7 +473,7 @@ export function OrdersView() {
                       type="number"
                       min="0"
                       step="0.01"
-                      placeholder="Prix"
+                      placeholder={t("orders.form.pricePh")}
                       value={line.unitPrice}
                       onChange={(event) => updateLine(line.localId, { unitPrice: event.target.value })}
                     />
@@ -483,7 +482,7 @@ export function OrdersView() {
                       type="number"
                       min="0"
                       max="100"
-                      placeholder="Remise %"
+                      placeholder={t("orders.form.discountPh")}
                       value={line.discountPercent}
                       onChange={(event) => updateLine(line.localId, { discountPercent: event.target.value })}
                     />
@@ -491,18 +490,18 @@ export function OrdersView() {
                       type="button"
                       className="flex items-center justify-center rounded-lg border border-outline-variant px-3 text-secondary hover:bg-surface"
                       onClick={() => setLines((current) => current.length === 1 ? [emptyLine()] : current.filter((entry) => entry.localId !== line.localId))}
-                      title="Supprimer la ligne"
+                      title={t("orders.form.deleteLine")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                     <div className="text-right text-xs font-bold text-on-surface md:col-span-6">
-                      Total ligne: {formatCurrency(lineTotal(line), company.currency)}
+                      {t("orders.form.lineTotal")}: {formatCurrency(lineTotal(line), company.currency)}
                     </div>
                   </div>
                 ))}
               </div>
               <div className="mt-3 flex justify-end text-sm font-black text-on-surface">
-                Total articles: {formatCurrency(computedTotal, company.currency)}
+                {t("orders.form.articlesTotal")}: {formatCurrency(computedTotal, company.currency)}
               </div>
             </div>
 
@@ -510,7 +509,7 @@ export function OrdersView() {
               <input
                 className="rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
                 type="number"
-                placeholder="Montant manuel si aucune ligne"
+                placeholder={t("orders.form.manualAmountPh")}
                 value={form.amount}
                 onChange={(event) => setForm({ ...form, amount: event.target.value })}
               />
@@ -519,14 +518,14 @@ export function OrdersView() {
                 type="number"
                 min="0"
                 max="100"
-                placeholder="Remise validation %"
+                placeholder={t("orders.form.discountValidationPh")}
                 value={form.discount}
                 onChange={(event) => setForm({ ...form, discount: event.target.value })}
               />
             </div>
             <textarea
               className="min-h-28 w-full rounded-xl border border-outline-variant bg-surface px-4 py-3 text-sm"
-              placeholder="Notes"
+              placeholder={t("orders.form.notesPh")}
               value={form.notes}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
             />
@@ -539,10 +538,10 @@ export function OrdersView() {
                   resetCreateForm();
                 }}
               >
-                Annuler
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Enregistrement..." : editingOrder ? "Mettre a jour" : "Enregistrer"}
+                {saving ? t("common.saving") : editingOrder ? t("orders.form.update") : t("common.save")}
               </Button>
             </div>
           </form>

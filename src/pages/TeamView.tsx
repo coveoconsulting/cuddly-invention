@@ -6,6 +6,7 @@ import { Badge } from "../components/ui";
 import { formatCurrency } from "../lib/labels";
 import { useWorkspace } from "../context/WorkspaceContext";
 
+import { useTranslation } from "../i18n";
 type MemberStats = {
   user: UserSummary;
   visitsCompleted: number;
@@ -16,6 +17,7 @@ type MemberStats = {
 };
 
 export function TeamView() {
+  const { t } = useTranslation();
   const { company } = useWorkspace();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -79,9 +81,9 @@ export function TeamView() {
   return (
     <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
       <div>
-        <p className="text-sm text-secondary">Pilotage</p>
-        <h1 className="mt-1 text-3xl font-black text-on-surface">Équipe</h1>
-        <p className="mt-1 text-sm text-secondary">Performance par utilisateur sur le périmètre visible.</p>
+        <p className="text-sm text-secondary">{t("team.auto.pilotage")}</p>
+        <h1 className="mt-1 text-3xl font-black text-on-surface">{t("team.auto.equipe")}</h1>
+        <p className="mt-1 text-sm text-secondary">{t("team.auto.performanceParUtilisateurSur")}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -118,18 +120,18 @@ export function TeamView() {
       ) : members.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center text-secondary">
           <Users className="h-8 w-8" />
-          <p className="text-sm">Aucun membre visible.</p>
+          <p className="text-sm">{t("team.auto.aucunMembreVisible")}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-outline-variant bg-surface-container-lowest">
           <table className="w-full text-sm">
             <thead className="border-b border-outline-variant bg-surface">
               <tr className="text-left text-xs uppercase tracking-wider text-secondary">
-                <th className="px-4 py-3">Membre</th>
-                <th className="px-4 py-3">Rôle</th>
-                <th className="px-4 py-3">Visites</th>
-                <th className="px-4 py-3">Pipeline</th>
-                <th className="px-4 py-3 text-right">CA</th>
+                <th className="px-4 py-3">{t("team.auto.membre")}</th>
+                <th className="px-4 py-3">{t("team.auto.role")}</th>
+                <th className="px-4 py-3">{t("team.auto.visites")}</th>
+                <th className="px-4 py-3">{t("team.auto.pipeline")}</th>
+                <th className="px-4 py-3 text-right">{t("team.auto.ca")}</th>
               </tr>
             </thead>
             <tbody>
@@ -156,7 +158,7 @@ export function TeamView() {
                     <p className="font-semibold text-on-surface">
                       {member.visitsCompleted}/{member.visitsTotal}
                     </p>
-                    <p className="text-[11px] text-secondary">terminées</p>
+                    <p className="text-[11px] text-secondary">{t("team.auto.terminees")}</p>
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-semibold text-on-surface">

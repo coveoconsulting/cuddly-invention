@@ -5,6 +5,7 @@ import { postJson } from "../lib/api";
 import type { AssistantResponse } from "../types";
 import { useWorkspace } from "../context/WorkspaceContext";
 
+import { useTranslation } from "../i18n";
 type ChatMessage = {
   role: "user" | "copilot";
   text: string;
@@ -22,6 +23,7 @@ type Thread = {
 const STORAGE_KEY_PREFIX = "clerivo:ai-threads:";
 
 function loadThreads(userId: string): Thread[] {
+  const { t } = useTranslation();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PREFIX + userId);
     if (!raw) return [];
@@ -33,6 +35,7 @@ function loadThreads(userId: string): Thread[] {
 }
 
 function saveThreads(userId: string, threads: Thread[]) {
+  const { t } = useTranslation();
   try {
     localStorage.setItem(STORAGE_KEY_PREFIX + userId, JSON.stringify(threads));
   } catch {
@@ -41,6 +44,7 @@ function saveThreads(userId: string, threads: Thread[]) {
 }
 
 function newThread(welcomeText: string): Thread {
+  const { t } = useTranslation();
   const id = (globalThis.crypto?.randomUUID?.() ?? `t-${Date.now()}`);
   const now = new Date().toISOString();
   return {
@@ -53,6 +57,7 @@ function newThread(welcomeText: string): Thread {
 }
 
 export function AIAssistantView() {
+  const { t } = useTranslation();
   const { company, currentUser } = useWorkspace();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -162,7 +167,7 @@ export function AIAssistantView() {
     <div className="mx-auto grid h-[calc(100vh-120px)] max-w-[1320px] grid-cols-1 gap-4 p-4 md:p-6 xl:grid-cols-[280px_1fr_280px]">
       <aside className="hidden flex-col overflow-hidden rounded-3xl border border-outline-variant bg-surface-container-lowest shadow-sm xl:flex">
         <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
-          <p className="text-sm font-bold text-on-surface">Conversations</p>
+          <p className="text-sm font-bold text-on-surface">{t("aiAssistant.auto.conversations")}</p>
           <button
             type="button"
             onClick={createThread}
@@ -174,7 +179,7 @@ export function AIAssistantView() {
         </div>
         <div className="flex-1 space-y-1 overflow-y-auto p-2">
           {threads.length === 0 ? (
-            <p className="px-2 py-3 text-xs text-secondary">Aucune conversation.</p>
+            <p className="px-2 py-3 text-xs text-secondary">{t("aiAssistant.auto.aucuneConversation")}</p>
           ) : (
             threads.map((thread) => (
               <div
@@ -199,7 +204,7 @@ export function AIAssistantView() {
                   type="button"
                   onClick={() => deleteThread(thread.id)}
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Supprimer"
+                  title={t("aiAssistant.auto.supprimer")}
                 >
                   <Trash2 className="h-3.5 w-3.5 text-secondary hover:text-error" />
                 </button>
@@ -217,7 +222,7 @@ export function AIAssistantView() {
             </div>
             <div className="min-w-0">
               <p className="text-base font-bold text-on-surface truncate">{active?.title ?? "Assistant IA"}</p>
-              <p className="text-xs text-secondary">Contexte session, portefeuille et alertes réelles</p>
+              <p className="text-xs text-secondary">{t("aiAssistant.auto.contexteSessionPortefeuilleEt")}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -274,7 +279,7 @@ export function AIAssistantView() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               className="flex-1 bg-transparent px-3 py-2 text-sm focus:outline-none"
-              placeholder="Demandez une analyse commerciale ou opérationnelle"
+              placeholder={t("aiAssistant.auto.demandezUneAnalyseCommerciale")}
               disabled={isLoading || !active}
             />
             <Button type="submit" size="sm" disabled={isLoading || !input.trim() || !active}>
@@ -286,8 +291,8 @@ export function AIAssistantView() {
 
       <div className="space-y-4 overflow-y-auto rounded-3xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
         <div>
-          <p className="text-sm font-bold text-on-surface">Requêtes rapides</p>
-          <p className="mt-1 text-xs text-secondary">Basées sur les données disponibles côté serveur.</p>
+          <p className="text-sm font-bold text-on-surface">{t("aiAssistant.auto.requetesRapides")}</p>
+          <p className="mt-1 text-xs text-secondary">{t("aiAssistant.auto.baseesSurLesDonnees")}</p>
         </div>
         <div className="space-y-3">
           {suggestions.map((suggestion) => (

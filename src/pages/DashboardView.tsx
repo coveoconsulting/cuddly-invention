@@ -25,12 +25,11 @@ import { asArray, getJson } from "../lib/api";
 import {
   formatCurrency,
   formatDate,
-  orderStatusLabel,
-  pipelineStageLabel,
 } from "../lib/labels";
 import { Badge, Button } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 
 const stageOrder: PipelineStage[] = ["qualification", "proposal", "negotiation", "won", "lost"];
 
@@ -81,6 +80,7 @@ function sumPipeline(opportunities: Opportunity[]) {
 
 export function DashboardView() {
   const { company, currentUser } = useWorkspace();
+  const { t } = useTranslation();
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -156,7 +156,7 @@ export function DashboardView() {
   if (isLoading || !dashboard) {
     return (
       <div className="bento-card mx-auto max-w-[1560px] p-10 text-center text-secondary">
-        Chargement du tableau de bord...
+        {t("dash.loading")}
       </div>
     );
   }
@@ -182,16 +182,16 @@ export function DashboardView() {
           </span>
         </div>
         <h2 className="[font-family:var(--font-display)] text-3xl font-bold tracking-[-0.06em] text-on-surface md:text-4xl">
-          Tableau de bord terrain
+          {t("dash.title")}
         </h2>
         <p className="max-w-3xl text-sm leading-relaxed text-secondary">
-          Vue consolidée des comptes, des visites, du pipeline, des commandes et du stock.
+          {t("dash.subtitle")}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" className="gap-2" onClick={() => void loadDashboard()}>
           <RefreshCcw className="h-4 w-4" />
-          Actualiser
+          {t("dash.refresh")}
         </Button>
       </div>
     </section>
@@ -202,19 +202,19 @@ export function DashboardView() {
       <div className="mx-auto flex max-w-[1580px] flex-col gap-5">
         {heroSection}
         <EmptyState
-          title="Bienvenue sur votre workspace"
-          description="Aucune donnée métier n'est encore enregistrée. Commencez par créer un compte client, planifier une visite ou ouvrir une opportunité — les KPI, alertes et listes de cette page s'alimenteront automatiquement."
+          title={t("dash.welcome.title")}
+          description={t("dash.welcome.desc")}
           className="bento-card py-12"
           action={
             <div className="flex flex-wrap items-center justify-center gap-2">
               <Link to="/clients" className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm">
-                Créer un compte
+                {t("dash.welcome.createAccount")}
               </Link>
               <Link to="/visits" className="rounded-full border border-outline-variant bg-white px-5 py-2.5 text-sm font-semibold text-on-surface">
-                Planifier une visite
+                {t("dash.welcome.planVisit")}
               </Link>
               <Link to="/pipeline" className="rounded-full border border-outline-variant bg-white px-5 py-2.5 text-sm font-semibold text-on-surface">
-                Ouvrir une opportunité
+                {t("dash.welcome.openOpp")}
               </Link>
             </div>
           }
@@ -231,7 +231,7 @@ export function DashboardView() {
         <article className="bento-card px-6 py-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Comptes visibles</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.kpi.accounts")}</p>
               <p className="mt-3 text-4xl font-black text-on-surface">{dashboard.kpis.totalClients}</p>
             </div>
             <div className="cutout-orb static h-12 w-12 shadow-none">
@@ -240,15 +240,15 @@ export function DashboardView() {
           </div>
           <p className="mt-4 text-sm text-secondary">
             {clients.length > 0
-              ? `${clients.filter((item) => item.status === "active").length} comptes actifs`
-              : "Aucun compte chargé"}
+              ? t("dash.kpi.accountsActive", { count: clients.filter((item) => item.status === "active").length })
+              : t("dash.kpi.noAccounts")}
           </p>
         </article>
 
         <article className="bento-card px-6 py-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Visites du jour</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.kpi.todayVisits")}</p>
               <p className="mt-3 text-4xl font-black text-on-surface">{dashboard.kpis.todayVisits}</p>
             </div>
             <div className="cutout-orb static h-12 w-12 shadow-none">
@@ -256,15 +256,14 @@ export function DashboardView() {
             </div>
           </div>
           <p className="mt-4 text-sm text-secondary">
-            {dashboard.kpis.completedVisits} terminée(s),{" "}
-            {Math.max(dashboard.kpis.todayVisits - dashboard.kpis.completedVisits, 0)} restante(s)
+            {t("dash.kpi.visitsDone", { done: dashboard.kpis.completedVisits, left: Math.max(dashboard.kpis.todayVisits - dashboard.kpis.completedVisits, 0) })}
           </p>
         </article>
 
         <article className="bento-card px-6 py-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Pipeline actif</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.kpi.pipeline")}</p>
               <p className="mt-3 text-4xl font-black text-on-surface">
                 {formatCurrency(pipelineTotal, company.currency)}
               </p>
@@ -274,14 +273,14 @@ export function DashboardView() {
             </div>
           </div>
           <p className="mt-4 text-sm text-secondary">
-            {dashboard.kpis.activeOpportunities} opportunité(s) ouverte(s)
+            {t("dash.kpi.oppsOpen", { count: dashboard.kpis.activeOpportunities })}
           </p>
         </article>
 
         <article className="bento-card px-6 py-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Commandes</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.kpi.orders")}</p>
               <p className="mt-3 text-4xl font-black text-on-surface">
                 {formatCurrency(revenueTotal, company.currency)}
               </p>
@@ -291,7 +290,7 @@ export function DashboardView() {
             </div>
           </div>
           <p className="mt-4 text-sm text-secondary">
-            {pendingApprovals.length} validation(s) en attente
+            {t("dash.kpi.approvalsPending", { count: pendingApprovals.length })}
           </p>
         </article>
       </section>
@@ -301,16 +300,16 @@ export function DashboardView() {
           <div className="relative flex h-full flex-col gap-5 px-6 py-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Priorités</p>
-                <h3 className="mt-2 text-2xl font-bold text-on-surface">Alertes opérationnelles</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.priorities")}</p>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">{t("dash.alertsTitle")}</h3>
               </div>
               <AlertTriangle className="h-5 w-5 text-carbon" />
             </div>
 
             {dashboard.alerts.length === 0 ? (
               <EmptyState
-                title="Aucune alerte active"
-                description="Les validations, retards et ruptures remontent ici dès qu'une donnée métier le justifie."
+                title={t("dash.noAlerts.title")}
+                description={t("dash.noAlerts.desc")}
               />
             ) : (
               <div className="space-y-3">
@@ -331,7 +330,7 @@ export function DashboardView() {
                               : "default"
                         }
                       >
-                        {alert.level}
+                        {t(`enum.notifLevel.${alert.level}`)}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm leading-relaxed text-secondary">{alert.description}</p>
@@ -346,16 +345,16 @@ export function DashboardView() {
           <div className="relative flex h-full flex-col gap-5 px-6 py-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Visites</p>
-                <h3 className="mt-2 text-2xl font-bold text-on-surface">Plan de tournée</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.visits")}</p>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">{t("dash.routePlan")}</h3>
               </div>
               <Clock3 className="h-5 w-5 text-carbon" />
             </div>
 
             {dashboard.todayVisits.length === 0 ? (
               <EmptyState
-                title="Aucune visite planifiée aujourd'hui"
-                description="Les prochains rendez-vous terrain apparaîtront ici avec leur créneau et leur objectif."
+                title={t("dash.noVisits.title")}
+                description={t("dash.noVisits.desc")}
               />
             ) : (
               <div className="space-y-3">
@@ -376,7 +375,7 @@ export function DashboardView() {
                               : "neutral"
                         }
                       >
-                        {visit.status}
+                        {t(`enum.visitStatus.${visit.status}`)}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-secondary">{visit.objective}</p>
@@ -394,16 +393,16 @@ export function DashboardView() {
           <div className="relative flex h-full flex-col gap-5 px-6 py-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Objectifs</p>
-                <h3 className="mt-2 text-2xl font-bold text-on-surface">Suivi personnel</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.targets")}</p>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">{t("dash.personalTracking")}</h3>
               </div>
               <Target className="h-5 w-5 text-carbon" />
             </div>
 
             {!myTarget ? (
               <EmptyState
-                title="Aucun objectif défini"
-                description="Définissez un objectif commercial, de visites ou de commandes pour suivre l'avancement."
+                title={t("dash.noTarget.title")}
+                description={t("dash.noTarget.desc")}
               />
             ) : (
               <div className="space-y-4">
@@ -415,28 +414,28 @@ export function DashboardView() {
                   <div className="mt-4 space-y-4">
                     {[
                       {
-                        label: "Chiffre d'affaires",
+                        label: t("dash.metric.revenue"),
                         actual: myTarget.revenueActual,
                         goal: myTarget.revenueGoal,
                         value: formatCurrency(myTarget.revenueActual, company.currency),
                         goalLabel: formatCurrency(myTarget.revenueGoal, company.currency),
                       },
                       {
-                        label: "Visites",
+                        label: t("dash.metric.visits"),
                         actual: myTarget.visitsActual,
                         goal: myTarget.visitsGoal,
                         value: `${myTarget.visitsActual}`,
                         goalLabel: `${myTarget.visitsGoal}`,
                       },
                       {
-                        label: "Opportunités",
+                        label: t("dash.metric.opportunities"),
                         actual: myTarget.opportunitiesActual,
                         goal: myTarget.opportunitiesGoal,
                         value: `${myTarget.opportunitiesActual}`,
                         goalLabel: `${myTarget.opportunitiesGoal}`,
                       },
                       {
-                        label: "Commandes",
+                        label: t("dash.metric.orders"),
                         actual: myTarget.ordersActual,
                         goal: myTarget.ordersGoal,
                         value: `${myTarget.ordersActual}`,
@@ -469,16 +468,16 @@ export function DashboardView() {
           <div className="relative flex h-full flex-col gap-5 px-6 py-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Pipeline</p>
-                <h3 className="mt-2 text-2xl font-bold text-on-surface">Répartition des opportunités</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.pipeline")}</p>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">{t("dash.oppDistribution")}</h3>
               </div>
               <TrendingUp className="h-5 w-5 text-carbon" />
             </div>
 
             {opportunities.length === 0 ? (
               <EmptyState
-                title="Aucune opportunité enregistrée"
-                description="Le pipeline affichera ici les volumes, montants et étapes réellement saisies."
+                title={t("dash.noOpps.title")}
+                description={t("dash.noOpps.desc")}
               />
             ) : (
               <div className="space-y-3">
@@ -489,7 +488,7 @@ export function DashboardView() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-on-surface">
-                        {pipelineStageLabel[item.stage]}
+                        {t(`enum.stage.${item.stage}`)}
                       </p>
                       <Badge variant="neutral">{item.count}</Badge>
                     </div>
@@ -507,16 +506,16 @@ export function DashboardView() {
           <div className="relative flex h-full flex-col gap-5 px-6 py-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Commandes</p>
-                <h3 className="mt-2 text-2xl font-bold text-on-surface">Flux récent</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.ordersSection")}</p>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">{t("dash.recentFlow")}</h3>
               </div>
               <ShoppingCart className="h-5 w-5 text-carbon" />
             </div>
 
             {dashboard.recentOrders.length === 0 ? (
               <EmptyState
-                title="Aucune commande récente"
-                description="Les commandes confirmées, en attente ou en brouillon remonteront ici."
+                title={t("dash.noRecentOrders.title")}
+                description={t("dash.noRecentOrders.desc")}
               />
             ) : (
               <div className="space-y-3">
@@ -528,7 +527,7 @@ export function DashboardView() {
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-on-surface">{order.clientName}</p>
                       <Badge variant={order.approvalStatus === "pending" ? "warning" : "neutral"}>
-                        {orderStatusLabel[order.status]}
+                        {t(`enum.orderStatus.${order.status}`)}
                       </Badge>
                     </div>
                     <p className="mt-2 text-sm text-secondary">{order.id}</p>
@@ -549,16 +548,16 @@ export function DashboardView() {
           <div className="relative flex h-full flex-col gap-5 px-6 py-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">Catalogue</p>
-                <h3 className="mt-2 text-2xl font-bold text-on-surface">Stock à surveiller</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-secondary">{t("dash.catalog")}</p>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">{t("dash.stockWatch")}</h3>
               </div>
               <Boxes className="h-5 w-5 text-carbon" />
             </div>
 
             {lowStockProducts.length === 0 ? (
               <EmptyState
-                title="Aucune alerte stock"
-                description="Les produits faibles ou en rupture apparaîtront ici automatiquement."
+                title={t("dash.noStockAlert.title")}
+                description={t("dash.noStockAlert.desc")}
               />
             ) : (
               <div className="space-y-3">

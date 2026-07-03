@@ -26,79 +26,83 @@ import {
 import { cn } from "../lib/utils";
 import { getJson } from "../lib/api";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useTranslation } from "../i18n";
 import { Logo } from "./Logo";
 import { planHasFeature, type PlanFeature, type PermissionKey } from "../types";
 
+// Labels are i18n keys resolved at render (see SidebarContent). Section titles and
+// item labels live in locales.ts under nav.*.
 type NavItem = {
   icon: typeof Bell;
-  label: string;
+  labelKey: string;
   path: string;
   permission: PermissionKey;
   feature?: PlanFeature;
 };
 
-const navSections: Array<{ title: string; items: NavItem[] }> = [
+const navSections: Array<{ titleKey: string; items: NavItem[] }> = [
   {
-    title: "Accueil",
+    titleKey: "nav.section.home",
     items: [
-      { icon: ChartColumnIncreasing, label: "Vue d'ensemble", path: "/dashboard", permission: "dashboard.read" },
-      { icon: CalendarDays, label: "Agenda", path: "/agenda", permission: "visits.read" },
-      { icon: Bell, label: "Notifications", path: "/notifications", permission: "notifications.read" },
+      { icon: ChartColumnIncreasing, labelKey: "nav.dashboard", path: "/dashboard", permission: "dashboard.read" },
+      { icon: CalendarDays, labelKey: "nav.agenda", path: "/agenda", permission: "visits.read" },
+      { icon: Bell, labelKey: "nav.notifications", path: "/notifications", permission: "notifications.read" },
     ],
   },
   {
-    title: "Commercial",
+    titleKey: "nav.section.commercial",
     items: [
-      { icon: Users, label: "Prospects & Contacts", path: "/prospects", permission: "clients.read", feature: "contacts" },
-      { icon: UsersRound, label: "Comptes", path: "/clients", permission: "clients.read", feature: "contacts" },
-      { icon: TrendingUp, label: "Pipeline", path: "/pipeline", permission: "opportunities.read", feature: "pipeline" },
-      { icon: Workflow, label: "Activités", path: "/activities", permission: "visits.read" },
+      { icon: Users, labelKey: "nav.prospects", path: "/prospects", permission: "clients.read", feature: "contacts" },
+      { icon: UsersRound, labelKey: "nav.clients", path: "/clients", permission: "clients.read", feature: "contacts" },
+      { icon: TrendingUp, labelKey: "nav.pipeline", path: "/pipeline", permission: "opportunities.read", feature: "pipeline" },
+      { icon: Workflow, labelKey: "nav.activities", path: "/activities", permission: "visits.read" },
     ],
   },
   {
-    title: "Messagerie",
+    titleKey: "nav.section.messaging",
     items: [
-      { icon: MessageCircle, label: "WhatsApp", path: "/whatsapp", permission: "clients.read", feature: "whatsapp" },
+      { icon: MessageCircle, labelKey: "nav.whatsapp", path: "/whatsapp", permission: "clients.read", feature: "whatsapp" },
     ],
   },
   {
-    title: "Ventes",
+    titleKey: "nav.section.sales",
     items: [
-      { icon: FileSignature, label: "Devis", path: "/quotes", permission: "orders.read", feature: "quotes" },
-      { icon: ShoppingCart, label: "Commandes", path: "/orders", permission: "orders.read", feature: "orders" },
-      { icon: Boxes, label: "Catalogue", path: "/products", permission: "products.read" },
+      { icon: FileSignature, labelKey: "nav.quotes", path: "/quotes", permission: "orders.read", feature: "quotes" },
+      { icon: ShoppingCart, labelKey: "nav.orders", path: "/orders", permission: "orders.read", feature: "orders" },
+      { icon: Boxes, labelKey: "nav.products", path: "/products", permission: "products.read" },
     ],
   },
   {
-    title: "Opérations",
+    titleKey: "nav.section.operations",
     items: [
-      { icon: Map, label: "Tournées", path: "/routes", permission: "routes.read", feature: "visits" },
-      { icon: FolderKanban, label: "Documents", path: "/documents", permission: "clients.read" },
+      { icon: Map, labelKey: "nav.routes", path: "/routes", permission: "routes.read", feature: "visits" },
+      { icon: FolderKanban, labelKey: "nav.documents", path: "/documents", permission: "clients.read" },
     ],
   },
   {
-    title: "Pilotage",
+    titleKey: "nav.section.steering",
     items: [
-      { icon: ChartColumnIncreasing, label: "Rapports", path: "/reports", permission: "insights.read", feature: "advanced_reports" },
-      { icon: Target, label: "Objectifs & Challenges", path: "/targets", permission: "targets.read" },
-      { icon: UsersRound, label: "Équipe", path: "/team", permission: "insights.read" },
-      { icon: CheckSquare, label: "Approbations", path: "/approvals", permission: "approvals.write" },
+      { icon: ChartColumnIncreasing, labelKey: "nav.reports", path: "/reports", permission: "insights.read", feature: "advanced_reports" },
+      { icon: Target, labelKey: "nav.targets", path: "/targets", permission: "targets.read" },
+      { icon: UsersRound, labelKey: "nav.team", path: "/team", permission: "insights.read" },
+      { icon: CheckSquare, labelKey: "nav.approvals", path: "/approvals", permission: "approvals.write" },
     ],
   },
   {
-    title: "Outils",
+    titleKey: "nav.section.tools",
     items: [
-      { icon: Bot, label: "Assistant", path: "/assistant", permission: "assistant.read", feature: "assistant_ai" },
-      { icon: Settings, label: "Paramètres", path: "/settings", permission: "settings.read" },
-      { icon: CreditCard, label: "Abonnement", path: "/billing", permission: "settings.read" },
-      { icon: Shield, label: "Rôles", path: "/roles", permission: "roles.read" },
-      { icon: ScrollText, label: "Audit", path: "/audit", permission: "audit.read" },
+      { icon: Bot, labelKey: "nav.assistant", path: "/assistant", permission: "assistant.read", feature: "assistant_ai" },
+      { icon: Settings, labelKey: "nav.settings", path: "/settings", permission: "settings.read" },
+      { icon: CreditCard, labelKey: "nav.billing", path: "/billing", permission: "settings.read" },
+      { icon: Shield, labelKey: "nav.roles", path: "/roles", permission: "roles.read" },
+      { icon: ScrollText, labelKey: "nav.audit", path: "/audit", permission: "audit.read" },
     ],
   },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { can, company, currentUser } = useWorkspace();
+  const { t } = useTranslation();
   const plan = company?.plan;
   const [waUnread, setWaUnread] = useState(0);
 
@@ -159,9 +163,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           }
 
           return (
-            <div key={section.title}>
+            <div key={section.titleKey}>
               <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-wider text-secondary">
-                {section.title}
+                {t(section.titleKey)}
               </p>
               <div className="space-y-1">
                 {items.map((item) => (
@@ -179,7 +183,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     }
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <span className="truncate">{t(item.labelKey)}</span>
                     {item.path === "/whatsapp" && waUnread > 0 ? (
                       <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary">
                         {waUnread > 99 ? "99+" : waUnread}

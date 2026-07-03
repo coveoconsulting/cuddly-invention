@@ -5,7 +5,8 @@ import { asArray, getJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
 import { VisitsMap } from "../components/VisitsMap";
-import { visitStatusLabel, visitStatusTone } from "../lib/labels";
+import { visitStatusTone } from "../lib/labels";
+import { useTranslation } from "../i18n";
 
 function visitPoint(visit: Visit) {
   return visit.checkInLocation || visit.checkOutLocation || null;
@@ -62,6 +63,7 @@ function optimizeRoute(visits: Visit[]) {
 }
 
 export function RoutesView() {
+  const { t } = useTranslation();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [optimized, setOptimized] = useState(false);
@@ -91,12 +93,12 @@ export function RoutesView() {
     <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <p className="text-sm text-secondary">Préparation terrain</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Tournées</h1>
+          <p className="text-sm text-secondary">{t("routes.auto.preparationTerrain")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("routes.auto.tournees")}</h1>
         </div>
         <Button variant="outline" className="self-start gap-2" onClick={() => setOptimized((value) => !value)}>
           <Shuffle className="h-4 w-4" />
-          {optimized ? "Revenir a l'ordre initial" : "Optimiser par GPS"}
+          {optimized ? t("routes.auto.revertOrder") : t("routes.auto.optimizeGps")}
         </Button>
       </div>
 
@@ -104,14 +106,14 @@ export function RoutesView() {
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <Map className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-bold text-on-surface">Ordre de passage</h2>
+            <h2 className="text-sm font-bold text-on-surface">{t("routes.auto.ordreDePassage")}</h2>
           </div>
           {isLoading ? (
-            <div className="text-secondary">Chargement des visites...</div>
+            <div className="text-secondary">{t("routes.auto.chargementDesVisites")}</div>
           ) : routeVisits.length === 0 ? (
             <EmptyState
-              title="Aucune tournée disponible"
-              description="Les arrêts s'organiseront ici dès qu'une visite sera planifiée."
+              title={t("routes.auto.aucuneTourneeDisponible")}
+              description={t("routes.auto.emptyDesc")}
             />
           ) : (
             <div className="space-y-3">
@@ -126,7 +128,7 @@ export function RoutesView() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-on-surface">{visit.clientName}</p>
-                      <Badge variant={visitStatusTone(visit.status)}>{visitStatusLabel[visit.status]}</Badge>
+                      <Badge variant={visitStatusTone(visit.status)}>{t(`enum.visitStatus.${visit.status}`)}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-secondary">
                       {visit.scheduledDate} | {visit.startTime} - {visit.endTime}
@@ -145,11 +147,11 @@ export function RoutesView() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
-              <p className="text-xs uppercase tracking-wider text-secondary">Arrêts</p>
+              <p className="text-xs uppercase tracking-wider text-secondary">{t("routes.auto.arrets")}</p>
               <p className="mt-1 text-2xl font-black text-on-surface">{routeVisits.length}</p>
             </div>
             <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
-              <p className="text-xs uppercase tracking-wider text-secondary">Avec GPS</p>
+              <p className="text-xs uppercase tracking-wider text-secondary">{t("routes.auto.avecGps")}</p>
               <p className="mt-1 text-2xl font-black text-on-surface">
                 {routeVisits.filter((visit) => visit.checkInLocation || visit.checkOutLocation).length}
               </p>

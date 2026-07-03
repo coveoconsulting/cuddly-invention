@@ -5,12 +5,14 @@ import type { NotificationItem } from "../types";
 import { ApiError, asArray, getJson, postJson } from "../lib/api";
 import { Badge, Button } from "../components/ui";
 import { useWorkspace } from "../context/WorkspaceContext";
-import { formatDateTime, notificationLevelLabel, notificationTone } from "../lib/labels";
+import { useTranslation } from "../i18n";
+import { formatDateTime, notificationTone } from "../lib/labels";
 
 type Filter = "all" | "unread";
 
 export function NotificationsView() {
   const { markNotificationRead } = useWorkspace();
+  const { t } = useTranslation();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
@@ -23,7 +25,7 @@ export function NotificationsView() {
       const payload = await getJson<unknown>("/api/v1/notifications");
       setItems(asArray<NotificationItem>(payload));
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Chargement impossible");
+      setError(reason instanceof ApiError ? reason.message : t("notif.err.load"));
     } finally {
       setIsLoading(false);
     }
@@ -56,13 +58,13 @@ export function NotificationsView() {
     <div className="mx-auto max-w-3xl space-y-5 p-4 md:p-6">
       <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-end">
         <div>
-          <p className="text-sm text-secondary">Centre de notifications</p>
-          <h1 className="mt-1 text-3xl font-black text-on-surface">Notifications</h1>
+          <p className="text-sm text-secondary">{t("notif.eyebrow")}</p>
+          <h1 className="mt-1 text-3xl font-black text-on-surface">{t("notif.title")}</h1>
         </div>
         {unreadCount > 0 ? (
           <Button variant="outline" onClick={() => void markAllRead()}>
             <CheckCheck className="mr-2 h-4 w-4" />
-            Tout marquer lu
+            {t("notif.markAllRead")}
           </Button>
         ) : null}
       </div>
@@ -77,7 +79,7 @@ export function NotificationsView() {
               : "border-outline-variant bg-white text-secondary"
           }`}
         >
-          Toutes ({items.length})
+          {t("notif.filterAll", { count: items.length })}
         </button>
         <button
           type="button"
@@ -88,13 +90,13 @@ export function NotificationsView() {
               : "border-outline-variant bg-white text-secondary"
           }`}
         >
-          Non lues ({unreadCount})
+          {t("notif.filterUnread", { count: unreadCount })}
         </button>
       </div>
 
       {isLoading ? (
         <div className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-8 text-secondary">
-          Chargement...
+          {t("common.loading")}
         </div>
       ) : error ? (
         <div className="rounded-2xl border border-error/20 bg-error-container p-4 text-sm text-error">
@@ -104,7 +106,7 @@ export function NotificationsView() {
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest p-10 text-center text-secondary">
           <BellOff className="h-8 w-8 text-secondary" />
           <p className="text-sm">
-            {filter === "unread" ? "Aucune notification non lue." : "Aucune notification."}
+            {filter === "unread" ? t("notif.emptyUnread") : t("notif.empty")}
           </p>
         </div>
       ) : (
@@ -136,9 +138,9 @@ export function NotificationsView() {
                   >
                     {notification.title}
                   </p>
-                  {!notification.read ? <Badge variant="success">Nouveau</Badge> : null}
+                  {!notification.read ? <Badge variant="success">{t("notif.new")}</Badge> : null}
                   <Badge variant={notificationTone(notification.level)}>
-                    {notificationLevelLabel[notification.level]}
+                    {t(`enum.notifLevel.${notification.level}`)}
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm text-secondary">{notification.body}</p>
@@ -152,7 +154,7 @@ export function NotificationsView() {
                     to={notification.link}
                     className="rounded-lg border border-outline-variant bg-white px-3 py-1.5 text-xs font-semibold text-on-surface hover:bg-surface"
                   >
-                    Ouvrir
+                    {t("notif.open")}
                   </Link>
                 ) : null}
                 {!notification.read ? (
@@ -161,7 +163,7 @@ export function NotificationsView() {
                     onClick={() => void markRead(notification.id)}
                     className="rounded-lg border border-outline-variant bg-white px-3 py-1.5 text-xs font-semibold text-secondary hover:bg-surface"
                   >
-                    Marquer lu
+                    {t("notif.markRead")}
                   </button>
                 ) : null}
               </div>
