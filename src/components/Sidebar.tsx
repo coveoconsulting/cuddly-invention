@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   Bell,
   Bot,
@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ChartColumnIncreasing,
   CheckSquare,
+  ChevronDown,
   CreditCard,
   FileSignature,
   FolderKanban,
@@ -100,11 +101,59 @@ const navSections: Array<{ titleKey: string; items: NavItem[] }> = [
   },
 ];
 
+const OPEN_SECTIONS_STORAGE_KEY = "sidebar:open-sections";
+
+function sectionForPath(pathname: string): string | undefined {
+  return navSections.find((section) => section.items.some((item) => pathname.startsWith(item.path)))?.titleKey;
+}
+
+function loadStoredOpenSections(): Set<string> | null {
+  try {
+    const raw = localStorage.getItem(OPEN_SECTIONS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { can, company, currentUser } = useWorkspace();
   const { t } = useTranslation();
+  const location = useLocation();
   const plan = company?.plan;
   const [waUnread, setWaUnread] = useState(0);
+  const [openSections, setOpenSections] = useState<Set<string>>(() => {
+    const activeSection = sectionForPath(location.pathname);
+    return loadStoredOpenSections() ?? new Set(activeSection ? [activeSection] : [navSections[0].titleKey]);
+  });
+
+  // Always reveal the section containing the current route, even if the user
+  // had collapsed it previously — otherwise the highlighted nav item can end
+  // up hidden with no obvious way to find it again.
+  useEffect(() => {
+    const activeSection = sectionForPath(location.pathname);
+    if (!activeSection) return;
+    setOpenSections((prev) => (prev.has(activeSection) ? prev : new Set(prev).add(activeSection)));
+  }, [location.pathname]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPEN_SECTIONS_STORAGE_KEY, JSON.stringify([...openSections]));
+    } catch {
+      /* best effort */
+    }
+  }, [openSections]);
+
+  const toggleSection = (titleKey: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(titleKey)) next.delete(titleKey);
+      else next.add(titleKey);
+      return next;
+    });
+  };
 
   const whatsappEnabled = planHasFeature(plan, "whatsapp") && can("clients.read");
   useEffect(() => {
@@ -153,7 +202,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         ) : null}
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navSections.map((section) => {
           const items = section.items.filter(
             (item) => can(item.permission) && (!item.feature || planHasFeature(plan, item.feature)),
@@ -161,36 +210,54 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           if (items.length === 0) {
             return null;
           }
+          const isOpen = openSections.has(section.titleKey);
+          const sectionHasUnread = section.items.some((item) => item.path === "/whatsapp") && waUnread > 0;
 
           return (
             <div key={section.titleKey}>
-              <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-wider text-secondary">
-                {t(section.titleKey)}
-              </p>
-              <div className="space-y-1">
-                {items.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => onNavigate?.()}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
-                        isActive
-                          ? "bg-primary text-on-primary shadow-sm"
-                          : "text-secondary hover:bg-white/80 hover:text-on-surface",
-                      )
-                    }
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{t(item.labelKey)}</span>
-                    {item.path === "/whatsapp" && waUnread > 0 ? (
-                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary">
-                        {waUnread > 99 ? "99+" : waUnread}
-                      </span>
-                    ) : null}
-                  </NavLink>
-                ))}
+              <button
+                type="button"
+                onClick={() => toggleSection(section.titleKey)}
+                aria-expanded={isOpen}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-[11px] font-bold uppercase tracking-wider text-secondary hover:bg-white/60"
+              >
+                <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", isOpen ? "rotate-0" : "-rotate-90")} />
+                <span className="flex-1 text-left">{t(section.titleKey)}</span>
+                {!isOpen && sectionHasUnread ? (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-on-primary">
+                    {waUnread > 99 ? "99+" : waUnread}
+                  </span>
+                ) : null}
+              </button>
+              <div
+                className="overflow-hidden transition-[max-height] duration-200 ease-in-out"
+                style={{ maxHeight: isOpen ? 600 : 0 }}
+              >
+                <div className="space-y-1 py-1">
+                    {items.map((item) => (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => onNavigate?.()}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                            isActive
+                              ? "bg-primary text-on-primary shadow-sm"
+                              : "text-secondary hover:bg-white/80 hover:text-on-surface",
+                          )
+                        }
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{t(item.labelKey)}</span>
+                        {item.path === "/whatsapp" && waUnread > 0 ? (
+                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary">
+                            {waUnread > 99 ? "99+" : waUnread}
+                          </span>
+                        ) : null}
+                      </NavLink>
+                    ))}
+                </div>
               </div>
             </div>
           );
